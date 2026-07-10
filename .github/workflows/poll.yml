@@ -18,8 +18,11 @@ jobs:
     steps:
       - name: Hit /api/poll every 15 seconds
         run: |
+          # Sale ends 2026-07-12 23:59 KST; stop polling at 2026-07-13 00:00 KST (= 15:00 UTC)
+          event_end=$(date -u -d '2026-07-12 15:00:00' +%s)
+          if [ "$(date -u +%s)" -ge "$event_end" ]; then echo "Event over, nothing to poll."; exit 0; fi
           end=$((SECONDS + 40*60))
-          while [ $SECONDS -lt $end ]; do
+          while [ $SECONDS -lt $end ] && [ "$(date -u +%s)" -lt "$event_end" ]; do
             curl -s --max-time 10 "https://kumix.vercel.app/api/poll" || true
             echo ""
             sleep 15
