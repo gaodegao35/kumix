@@ -40,8 +40,8 @@ async function saveIfChanged(redisUrl, redisToken, key, sales) {
 }
 
 module.exports = async (req, res) => {
-  const redisUrl   = process.env.KV_REST_API_URL;
-  const redisToken = process.env.KV_REST_API_TOKEN;
+  const redisUrl   = process.env.KV_REST_API_URL   || process.env.UPSTASH_REDIS_REST_URL;
+  const redisToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
 
   if (!redisUrl || !redisToken) {
     res.status(500).json({ error: 'Redis not configured' });
