@@ -1,0 +1,26 @@
+name: Poll stock every 15s
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+# A new run takes over from the previous one so hits don't double up,
+# and the 40-min loop overlaps the 30-min schedule to cover scheduler delays.
+concurrency:
+  group: poll
+  cancel-in-progress: true
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Hit /api/poll every 15 seconds
+        run: |
+          end=$((SECONDS + 40*60))
+          while [ $SECONDS -lt $end ]; do
+            curl -s --max-time 10 "https://kumix.vercel.app/api/poll" || true
+            echo ""
+            sleep 15
+          done

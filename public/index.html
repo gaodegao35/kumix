@@ -16,9 +16,6 @@
     .dot.active { background: #16a34a; }
     .dot.error  { background: #dc2626; }
     .next-refresh { font-size: 12px; color: #aaa; margin-left: auto; }
-    .total-bar { background: #fff; border: 1px solid #e0e0e0; border-radius: 10px; padding: 16px 20px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; }
-    .total-label { font-size: 13px; color: #888; }
-    .total-value { font-size: 24px; font-weight: 800; }
     .section-label { font-size: 11px; font-weight: 700; color: #aaa; text-transform: uppercase; letter-spacing: 0.1em; margin: 20px 0 10px; }
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
     .card { background: #fff; border: 1px solid #e0e0e0; border-radius: 10px; padding: 18px 20px; display: block; transition: border-color 0.2s, box-shadow 0.2s; }
@@ -49,13 +46,6 @@
     <div class="dot" id="dot"></div>
     <span id="status-text">Connecting...</span>
     <span class="next-refresh" id="next-refresh"></span>
-  </div>
-
-  <div class="total-bar">
-    <div>
-      <div class="total-label">Total sold (all options)</div>
-      <div class="total-value" id="total-sales">—</div>
-    </div>
   </div>
 
   <div class="section-label">Events</div>
@@ -105,12 +95,10 @@
     }
 
     function update(data) {
-      let total = 0;
       OPTIONS.forEach(opt => {
         const apiOpt = (data.options || []).find(o => o.id === opt.id);
         if (!apiOpt) return;
         const sales = MAX_STOCK - apiOpt.stock;
-        total += sales;
         document.getElementById('sales-' + opt.id).textContent = fmt(sales);
         document.getElementById('stock-' + opt.id).textContent = fmt(apiOpt.stock) + ' left of ' + fmt(MAX_STOCK);
         const prev = prevSales[opt.id];
@@ -125,7 +113,6 @@
         }
         prevSales[opt.id] = sales;
       });
-      document.getElementById('total-sales').textContent = fmt(total);
     }
 
     function setStatus(ok, text) {
