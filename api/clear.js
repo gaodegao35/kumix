@@ -1,4 +1,6 @@
-// One-time cleanup: removes duplicate consecutive entries from a Redis log key
+// Redis log maintenance:
+//   ?delete=<key>     → wipe log:<key>
+//   ?purge=weidian    → delete every log:* key that is NOT a my1pick key (log:pick*)
 async function redis(token, url, command) {
   const res = await fetch(url, {
     method: 'POST',
@@ -13,7 +15,6 @@ module.exports = async (req, res) => {
   const token = process.env.KV_REST_API_TOKEN;
   if (!url || !token) { res.status(500).json({ error: 'Redis not configured' }); return; }
 
-  // ?delete=KUNHO → wipe that key entirely
   if (req.query.delete) {
     const redisKey = 'log:' + req.query.delete;
     await redis(token, url, ['DEL', redisKey]);
@@ -21,32 +22,13 @@ module.exports = async (req, res) => {
     return;
   }
 
-  const keys = ['KUNHO','YOUMIN','XAYDEN','MINJE','MASAMI','HYUNBIN','ON:N','1v7'];
-  const report = {};
-
-  for (const k of keys) {
-    const redisKey = 'log:' + k;
-    const result = await redis(token, url, ['LRANGE', redisKey, 0, 1999]);
-    const entries = (result.result || []).map(e => JSON.parse(e));
-
-    // entries are newest-first; deduplicate consecutive same sold values
-    const deduped = entries.filter((e, i) => {
-      if (i === 0) return true;
-      return e.sold !== entries[i - 1].sold;
-    });
-
-    if (deduped.length < entries.length) {
-      // rewrite the key with deduped entries
-      await redis(token, url, ['DEL', redisKey]);
-      // push oldest-first so newest ends up at index 0
-      for (let i = deduped.length - 1; i >= 0; i--) {
-        await redis(token, url, ['LPUSH', redisKey, JSON.stringify(deduped[i])]);
-      }
-      report[k] = { before: entries.length, after: deduped.length };
-    } else {
-      report[k] = { before: entries.length, after: deduped.length };
-    }
+  if (req.query.purge === 'weidian') {
+    const result = await redis(token, url, ['KEYS', 'log:*']);
+    const keys = (result.result || []).filter(k => !k.startsWith('log:pick'));
+    for (const k of keys) await redis(token, url, ['DEL', k]);
+    res.status(200).json({ ok: true, deleted: keys });
+    return;
   }
 
-  res.status(200).json({ ok: true, report });
+  res.status(400).json({ error: 'use ?delete=<key> or ?purge=weidian' });
 };

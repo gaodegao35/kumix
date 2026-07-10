@@ -1,57 +1,17 @@
-const https = require('https');
-
-const ITEM_CONFIG = {
-  '7565709739': {
-    stocks: { 'KUNHO': 699699, 'YOUMIN': 985477, 'XAYDEN': 987130, 'MINJE': 875395, 'MASAMI': 987500, 'HYUNBIN': 998533, 'ON:N': 987423 }
-  },
-  '7565710019': {
-    stocks: { 'KUNHO': 984766, 'YOUMIN': 980640, 'XAYDEN': 966266, 'MINJE': 669733, 'MASAMI': 669772, 'HYUNBIN': 965555, 'ON:N': 666566 }
-  },
-  '7526988904': {
-    stocks: { 'KUNHO': 999688, 'YOUMIN': 999833, 'XAYDEN': 999510, 'MINJE': 999805, 'MASAMI': 999910, 'HYUNBIN': 999694, 'ON:N': 999877 }
-  },
-  '7719424307': {
-    stocks: { 'RAP LINE': 488444, 'VOCAL LINE': 548985 }
-  },
-  '7527002904': {
-    stocks: { 'KUNHO': 999590, 'YOUMIN': 999805, 'XAYDEN': 999696, 'MINJE': 999780, 'MASAMI': 999866, 'HYUNBIN': 999755, 'ON:N': 999866 }
-  },
-  '7525118051': {
-    type: 'single',
-    maxStock: 94685930
-  },
-  '7527002684': {
-    stocks: { 'KUNHO': 999588, 'YOUMIN': 999810, 'XAYDEN': 999444, 'MINJE': 999303, 'MASAMI': 999899, 'HYUNBIN': 999348, 'ON:N': 999828 }
-  },
-  '7527004128': {
-    stocks: { 'KUNHO': 998188, 'YOUMIN': 999777, 'XAYDEN': 998999, 'MINJE': 999515, 'MASAMI': 999899, 'HYUNBIN': 999494, 'ON:N': 999870 }
-  },
-  '7525161891': {
-    stocks: { 'KUNHO': 999388, 'YOUMIN': 999766, 'XAYDEN': 999667, 'MINJE': 999696, 'MASAMI': 999915, 'HYUNBIN': 999700, 'ON:N': 999828 }
-  },
-  '7722424286': {
-    stocks: { 'KUNHO': 869574, 'YOUMIN': 869574, 'XAYDEN': 869574, 'MINJE': 869574, 'MASAMI': 869574, 'HYUNBIN': 869574, 'ON:N': 869574 }
-  },
-  '7525003573': {
-    stocks: { 'KUNHO': 99735, 'YOUMIN': 999850, 'XAYDEN': 999255, 'MINJE': 999530, 'MASAMI': 999205, 'HYUNBIN': 999800, 'ON:N': 999905 }
-  },
-  '7524652103': {
-    type: 'single',
-    maxStock: 999957270
-  }
+const PRODUCT_ID = '429';
+const MAX_STOCK = 9999;
+const OPTION_NAMES = {
+  757: 'SPECIAL CAFE',
+  758: 'GROUP CALL',
+  759: 'BOHYEON',
+  760: 'HYO',
+  761: 'HARUTO',
+  762: 'JUNSEONG',
+  763: 'JAEIL',
+  764: 'KAI',
+  765: 'YEONTAE',
+  766: 'SECHAN'
 };
-
-function canonicalTitle(t) { return t.replace(/：/g, ':'); }
-
-function fetchJson(url) {
-  return new Promise((resolve, reject) => {
-    https.get(url, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => { try { resolve(JSON.parse(data)); } catch(e) { reject(e); } });
-    }).on('error', reject);
-  });
-}
 
 async function redis(token, url, command) {
   const res = await fetch(url, {
@@ -82,7 +42,6 @@ async function saveIfChanged(redisUrl, redisToken, key, sales) {
 module.exports = async (req, res) => {
   const redisUrl   = process.env.KV_REST_API_URL;
   const redisToken = process.env.KV_REST_API_TOKEN;
-  const wdtoken    = process.env.WDTOKEN || 'cdbf6c5e';
 
   if (!redisUrl || !redisToken) {
     res.status(500).json({ error: 'Redis not configured' });
@@ -90,31 +49,18 @@ module.exports = async (req, res) => {
   }
 
   const changes = [];
-  const ts = Date.now();
-
   try {
-    for (const [itemId, cfg] of Object.entries(ITEM_CONFIG)) {
-      const param = encodeURIComponent(JSON.stringify({ itemId }));
-      const url = `https://thor.weidian.com/detail/getItemSkuInfo/1.0?param=${param}&wdtoken=${wdtoken}&_=${ts}`;
-      const data = await fetchJson(url);
-      if (data.status.code !== 0) continue;
+    const apiUrl = `https://shop.my1pick.com/api/v1/common/products/${PRODUCT_ID}?displayChannel=WEB`;
+    const data = await fetch(apiUrl, { headers: { Accept: 'application/json' } }).then(r => r.json());
+    if (!data.id) throw new Error('product not found');
 
-      if (cfg.type === 'single') {
-        const sales = cfg.maxStock - data.result.itemStock;
-        const changed = await saveIfChanged(redisUrl, redisToken, itemId, sales);
-        if (changed) changes.push(itemId + '=' + sales);
-      } else {
-        for (const sku of data.result.skuInfos) {
-          const info = sku.skuInfo;
-          const title = canonicalTitle(info.title);
-          const max = cfg.stocks[title];
-          if (max === undefined) continue;
-          const sales = max - info.stock;
-          const key = itemId + ':' + title;
-          const changed = await saveIfChanged(redisUrl, redisToken, key, sales);
-          if (changed) changes.push(key + '=' + sales);
-        }
-      }
+    for (const opt of data.options || []) {
+      const name = OPTION_NAMES[opt.id];
+      if (!name) continue;
+      const sales = MAX_STOCK - opt.stock;
+      const key = 'pick' + PRODUCT_ID + ':' + name;
+      const changed = await saveIfChanged(redisUrl, redisToken, key, sales);
+      if (changed) changes.push(name + '=' + sales);
     }
   } catch (e) {
     res.status(500).json({ error: e.message });
