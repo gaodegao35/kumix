@@ -54,6 +54,9 @@
   <div class="section-label">1:1 Video Call — By Member</div>
   <div class="grid" id="grid-members"></div>
 
+  <div class="section-label">imini.tv — 线上视频通话2.0 (非大陆)</div>
+  <div class="grid" id="grid-imini"></div>
+
   <script>
     const PRODUCT_ID = '429';
     const MAX_STOCK = 9999;
@@ -69,7 +72,9 @@
       { id: 763, name: 'JAEIL',    section: 'members' },
       { id: 764, name: 'KAI',      section: 'members' },
       { id: 765, name: 'YEONTAE',  section: 'members' },
-      { id: 766, name: 'SECHAN',   section: 'members' }
+      { id: 766, name: 'SECHAN',   section: 'members' },
+      { id: 'imini59143360', proId: '59143360', name: '大陆 CN',     section: 'imini', max: 3709 },
+      { id: 'imini59143385', proId: '59143385', name: '非大陆 INTL', section: 'imini', max: 3709 }
     ];
 
     let prevSales = {}, countdownTimer;
@@ -94,24 +99,29 @@
       });
     }
 
+    function updateCard(opt, stock, max) {
+      const sales = max - stock;
+      document.getElementById('sales-' + opt.id).textContent = fmt(sales);
+      document.getElementById('stock-' + opt.id).textContent = fmt(stock) + ' left of ' + fmt(max);
+      const prev = prevSales[opt.id];
+      if (prev !== undefined && sales !== prev) {
+        const delta = sales - prev;
+        const badge = document.getElementById('badge-' + opt.id);
+        const card  = document.getElementById('card-'  + opt.id);
+        badge.textContent = (delta > 0 ? '+' : '') + fmt(delta);
+        badge.className = 'delta-badge visible ' + (delta > 0 ? 'up' : 'down');
+        card.classList.add('changed');
+        setTimeout(() => { badge.classList.remove('visible'); card.classList.remove('changed'); }, 5000);
+      }
+      prevSales[opt.id] = sales;
+    }
+
     function update(data) {
       OPTIONS.forEach(opt => {
+        if (opt.proId) return;
         const apiOpt = (data.options || []).find(o => o.id === opt.id);
         if (!apiOpt) return;
-        const sales = MAX_STOCK - apiOpt.stock;
-        document.getElementById('sales-' + opt.id).textContent = fmt(sales);
-        document.getElementById('stock-' + opt.id).textContent = fmt(apiOpt.stock) + ' left of ' + fmt(MAX_STOCK);
-        const prev = prevSales[opt.id];
-        if (prev !== undefined && sales !== prev) {
-          const delta = sales - prev;
-          const badge = document.getElementById('badge-' + opt.id);
-          const card  = document.getElementById('card-'  + opt.id);
-          badge.textContent = (delta > 0 ? '+' : '') + fmt(delta);
-          badge.className = 'delta-badge visible ' + (delta > 0 ? 'up' : 'down');
-          card.classList.add('changed');
-          setTimeout(() => { badge.classList.remove('visible'); card.classList.remove('changed'); }, 5000);
-        }
-        prevSales[opt.id] = sales;
+        updateCard(opt, apiOpt.stock, MAX_STOCK);
       });
     }
 
@@ -133,12 +143,21 @@
     }
 
     async function fetchStock() {
-      try {
-        const data = await fetch('/api/stockPick?productId=' + PRODUCT_ID).then(r => r.json());
-        if (data.error || !data.id) throw new Error(data.error || 'product not found');
-        update(data);
-        setStatus(true, 'Live · ' + now());
-      } catch (e) { setStatus(false, 'Error: ' + e.message); }
+      let ok = true, errMsg = '';
+      const iminiOpts = OPTIONS.filter(o => o.proId);
+      await Promise.all([
+        fetch('/api/stockPick?productId=' + PRODUCT_ID).then(r => r.json()).then(data => {
+          if (data.error || !data.id) throw new Error(data.error || 'product not found');
+          update(data);
+        }).catch(e => { ok = false; errMsg = e.message; }),
+        ...iminiOpts.map(opt =>
+          fetch('/api/stockImini?proId=' + opt.proId).then(r => r.json()).then(data => {
+            if (data.code !== '200') throw new Error(data.msg || 'imini error');
+            updateCard(opt, parseInt(data.pro_stock, 10), opt.max);
+          }).catch(e => { ok = false; errMsg = e.message; })
+        )
+      ]);
+      setStatus(ok, ok ? 'Live · ' + now() : 'Error: ' + errMsg);
       startCountdown();
     }
 

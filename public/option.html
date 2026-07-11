@@ -51,7 +51,7 @@
     <div class="summary-card">
       <div class="summary-label">Total Sold</div>
       <div class="summary-value" id="sum-sold">—</div>
-      <div class="summary-sub">of 9,999 total stock</div>
+      <div class="summary-sub" id="sum-sold-sub">of — total stock</div>
     </div>
     <div class="summary-card">
       <div class="summary-label">Last Change</div>
@@ -61,7 +61,7 @@
     <div class="summary-card">
       <div class="summary-label">Stock Left</div>
       <div class="summary-value" id="sum-stock">—</div>
-      <div class="summary-sub">of 9,999</div>
+      <div class="summary-sub" id="sum-stock-sub">of —</div>
     </div>
   </div>
 
@@ -87,19 +87,31 @@
       'YEONTAE':  765,
       'SECHAN':   766
     };
+    // imini.tv products (线上视频通话2.0), keyed by card name
+    const IMINI = {
+      '大陆 CN':     { proId: '59143360', max: 3709 },
+      '非大陆 INTL': { proId: '59143385', max: 3709 }
+    };
 
     const parts = window.location.pathname.split('/'); // ['', 'option', name]
     const NAME = decodeURIComponent(parts[2] || '');
     const OPTION_ID = OPTIONS[NAME];
-    const HISTORY_KEY = 'pick' + PRODUCT_ID + ':' + NAME;
+    const IMINI_CFG = IMINI[NAME];
+    const IS_IMINI = !!IMINI_CFG;
+    const MAX = IS_IMINI ? IMINI_CFG.max : MAX_STOCK;
+    const HISTORY_KEY = IS_IMINI ? 'imini' + IMINI_CFG.proId : 'pick' + PRODUCT_ID + ':' + NAME;
 
-    if (OPTION_ID === undefined) {
+    if (OPTION_ID === undefined && !IS_IMINI) {
       document.body.innerHTML = '<p style="padding:32px;color:#888">Not found. <a href="/">← Back</a></p>';
     } else {
       document.title = NAME + '-sold_log · YUHZ CAFE&CALL';
       document.getElementById('page-title').textContent = NAME + '-sold_log';
-      document.getElementById('page-meta').textContent = 'YUHZ CAFE&CALL · my1pick #' + PRODUCT_ID + ' · option #' + OPTION_ID + ' · Total stock: 9,999';
+      document.getElementById('page-meta').textContent = IS_IMINI
+        ? 'YUHZ 线上视频通话2.0 · imini.tv #' + IMINI_CFG.proId + ' · Total stock: ' + MAX.toLocaleString()
+        : 'YUHZ CAFE&CALL · my1pick #' + PRODUCT_ID + ' · option #' + OPTION_ID + ' · Total stock: 9,999';
       document.getElementById('table-caption').textContent = NAME + '-sold_log';
+      document.getElementById('sum-sold-sub').textContent = 'of ' + MAX.toLocaleString() + ' total stock';
+      document.getElementById('sum-stock-sub').textContent = 'of ' + MAX.toLocaleString();
     }
 
     let prevSales = null, countdownTimer;
@@ -139,14 +151,12 @@
         const latest = entries[0];
         prevSales = latest.sold;
         document.getElementById('sum-sold').textContent = fmt(latest.sold);
-        document.getElementById('sum-stock').textContent = fmt(MAX_STOCK - latest.sold);
+        document.getElementById('sum-stock').textContent = fmt(MAX - latest.sold);
       } catch (e) { /* no history yet */ }
     }
 
-    function update(data) {
-      const opt = (data.options || []).find(o => o.id === OPTION_ID);
-      if (!opt) return;
-      const sales = MAX_STOCK - opt.stock;
+    function update(stock) {
+      const sales = MAX - stock;
       const ts = tsNow();
       const delta = prevSales !== null ? sales - prevSales : null;
       if (delta === null || delta !== 0) {
@@ -154,7 +164,7 @@
         saveEntry(ts, sales, delta);
       }
       document.getElementById('sum-sold').textContent = fmt(sales);
-      document.getElementById('sum-stock').textContent = fmt(opt.stock);
+      document.getElementById('sum-stock').textContent = fmt(stock);
       if (delta !== null && delta !== 0) {
         const el = document.getElementById('sum-delta');
         el.textContent = (delta > 0 ? '+' : '') + fmt(delta);
@@ -184,11 +194,21 @@
     }
 
     async function fetchStock() {
-      if (OPTION_ID === undefined) return;
+      if (OPTION_ID === undefined && !IS_IMINI) return;
       try {
-        const data = await fetch('/api/stockPick?productId=' + PRODUCT_ID).then(r => r.json());
-        if (data.error || !data.id) throw new Error(data.error || 'product not found');
-        update(data);
+        let stock;
+        if (IS_IMINI) {
+          const data = await fetch('/api/stockImini?proId=' + IMINI_CFG.proId).then(r => r.json());
+          if (data.code !== '200') throw new Error(data.msg || 'imini error');
+          stock = parseInt(data.pro_stock, 10);
+        } else {
+          const data = await fetch('/api/stockPick?productId=' + PRODUCT_ID).then(r => r.json());
+          if (data.error || !data.id) throw new Error(data.error || 'product not found');
+          const opt = (data.options || []).find(o => o.id === OPTION_ID);
+          if (!opt) throw new Error('option not found');
+          stock = opt.stock;
+        }
+        update(stock);
         setStatus(true, 'Live · ' + tsNow().split(' ')[1]);
       } catch (e) { setStatus(false, 'Error: ' + e.message); }
       startCountdown();
