@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 # A new run takes over from the previous one so hits don't double up,
-# and the 40-min loop overlaps the 30-min schedule to cover scheduler delays.
+# and each run loops for up to ~6h, so late or skipped scheduled starts leave no gap.
 concurrency:
   group: poll
   cancel-in-progress: true
@@ -14,14 +14,14 @@ concurrency:
 jobs:
   poll:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 360
     steps:
       - name: Hit /api/poll every 15 seconds
         run: |
           # Sale ends 2026-10-14 23:59 KST; stop polling at 2026-10-15 00:00 KST (= 2026-10-14 15:00 UTC)
           event_end=$(date -u -d '2026-10-14 15:00:00' +%s)
           if [ "$(date -u +%s)" -ge "$event_end" ]; then echo "Event over, nothing to poll."; exit 0; fi
-          end=$((SECONDS + 40*60))
+          end=$((SECONDS + 350*60))
           while [ $SECONDS -lt $end ] && [ "$(date -u +%s)" -lt "$event_end" ]; do
             curl -s --max-time 10 "https://kumix.vercel.app/api/poll" || true
             echo ""
