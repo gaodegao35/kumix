@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Option — sold_log</title>
+  <title>Option Sold Log</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #111; min-height: 100vh; padding: 32px 24px; }
@@ -34,6 +34,7 @@
     td.delta.up   { color: #16a34a; }
     td.delta.down { color: #dc2626; }
     td.delta.zero { color: #aaa; }
+    td.empty { color: #aaa; font-weight: 400; text-align: left !important; }
   </style>
 </head>
 <body>
@@ -72,109 +73,11 @@
   </table>
 
   <script>
-    const PRODUCT_ID = '429';
-    const MAX_STOCK = 9999;
     const INTERVAL = 15000;
-    const OPTIONS = {
-      'SPECIAL CAFE': 757,
-      'GROUP CALL':   758,
-      'BOHYEON':  759,
-      'HYO':      760,
-      'HARUTO':   761,
-      'JUNSEONG': 762,
-      'JAEIL':    763,
-      'KAI':      764,
-      'YEONTAE':  765,
-      'SECHAN':   766
-    };
-    // imini.tv products (线上视频通话2.0), keyed by card name
-    const IMINI = {
-      '大陆 CN':     { proId: '59143360', max: 3709 },
-      '非大陆 INTL': { proId: '59143385', max: 3709 }
-    };
+    const SLUG = decodeURIComponent(window.location.pathname.split('/')[2] || '').toLowerCase();
 
-    const parts = window.location.pathname.split('/'); // ['', 'option', name]
-    const NAME = decodeURIComponent(parts[2] || '');
-    const OPTION_ID = OPTIONS[NAME];
-    const IMINI_CFG = IMINI[NAME];
-    const IS_IMINI = !!IMINI_CFG;
-    const MAX = IS_IMINI ? IMINI_CFG.max : MAX_STOCK;
-    const HISTORY_KEY = IS_IMINI ? 'imini' + IMINI_CFG.proId : 'pick' + PRODUCT_ID + ':' + NAME;
-
-    if (OPTION_ID === undefined && !IS_IMINI) {
-      document.body.innerHTML = '<p style="padding:32px;color:#888">Not found. <a href="/">← Back</a></p>';
-    } else {
-      document.title = NAME + '-sold_log · YUHZ CAFE&CALL';
-      document.getElementById('page-title').textContent = NAME + '-sold_log';
-      document.getElementById('page-meta').textContent = IS_IMINI
-        ? 'YUHZ 线上视频通话2.0 · imini.tv #' + IMINI_CFG.proId + ' · Total stock: ' + MAX.toLocaleString()
-        : 'YUHZ CAFE&CALL · my1pick #' + PRODUCT_ID + ' · option #' + OPTION_ID + ' · Total stock: 9,999';
-      document.getElementById('table-caption').textContent = NAME + '-sold_log';
-      document.getElementById('sum-sold-sub').textContent = 'of ' + MAX.toLocaleString() + ' total stock';
-      document.getElementById('sum-stock-sub').textContent = 'of ' + MAX.toLocaleString();
-    }
-
-    let prevSales = null, countdownTimer;
+    let countdownTimer, found = true;
     function fmt(n) { return n.toLocaleString(); }
-    function tsNow() {
-      const d = new Date(), pad = n => String(n).padStart(2, '0');
-      return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
-    }
-
-    function addRow(ts, sales, delta) {
-      const tbody = document.getElementById('log-body');
-      const tr = document.createElement('tr');
-      let dc = 'delta zero', dt = '—';
-      if (delta !== null) {
-        if (delta > 0)      { dc = 'delta up';   dt = '+' + fmt(delta); }
-        else if (delta < 0) { dc = 'delta down'; dt = fmt(delta); }
-      }
-      tr.innerHTML = '<td class="ts">' + ts + '</td><td class="sold-val">' + fmt(sales) + '</td><td class="' + dc + '">' + dt + '</td>';
-      tbody.prepend(tr);
-    }
-
-    async function saveEntry(ts, sold, delta) {
-      try {
-        await fetch('/api/save', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ key: HISTORY_KEY, ts, sold, delta }),
-        });
-      } catch (e) { /* non-critical */ }
-    }
-
-    async function loadHistory() {
-      try {
-        const entries = await fetch('/api/history?key=' + encodeURIComponent(HISTORY_KEY)).then(r => r.json());
-        if (!entries.length) return;
-        [...entries].reverse().forEach(e => addRow(e.ts, e.sold, e.delta));
-        const latest = entries[0];
-        prevSales = latest.sold;
-        document.getElementById('sum-sold').textContent = fmt(latest.sold);
-        document.getElementById('sum-stock').textContent = fmt(MAX - latest.sold);
-      } catch (e) { /* no history yet */ }
-    }
-
-    function update(stock) {
-      const sales = MAX - stock;
-      const ts = tsNow();
-      const delta = prevSales !== null ? sales - prevSales : null;
-      if (delta === null || delta !== 0) {
-        addRow(ts, sales, delta);
-        saveEntry(ts, sales, delta);
-      }
-      document.getElementById('sum-sold').textContent = fmt(sales);
-      document.getElementById('sum-stock').textContent = fmt(stock);
-      if (delta !== null && delta !== 0) {
-        const el = document.getElementById('sum-delta');
-        el.textContent = (delta > 0 ? '+' : '') + fmt(delta);
-        el.style.color = delta > 0 ? '#16a34a' : '#dc2626';
-        document.getElementById('sum-delta-time').textContent = 'at ' + ts.split(' ')[1];
-      } else if (prevSales === null) {
-        document.getElementById('sum-delta').textContent = '—';
-      }
-      prevSales = sales;
-    }
 
     function setStatus(ok, text) {
       document.getElementById('dot').className = 'dot ' + (ok ? 'active' : 'error');
@@ -193,31 +96,67 @@
       }, 1000);
     }
 
-    async function fetchStock() {
-      if (OPTION_ID === undefined && !IS_IMINI) return;
+    function renderHeader(opt, product) {
+      document.title = opt.name + ' sold_log · YUHZ MEET&CALL';
+      document.getElementById('page-title').textContent = opt.name + '-sold_log';
+      document.getElementById('page-meta').textContent =
+        opt.label + ' · my1pick #' + product.id + ' · Starting stock: ' + fmt(opt.base);
+      document.getElementById('table-caption').textContent = opt.name + '-sold_log (KST)';
+      document.getElementById('sum-sold').textContent = fmt(opt.sold);
+      document.getElementById('sum-sold-sub').textContent = 'of ' + fmt(opt.base) + ' starting stock';
+      document.getElementById('sum-stock').textContent = fmt(opt.stock);
+      document.getElementById('sum-stock-sub').textContent = 'of ' + fmt(opt.base);
+    }
+
+    function renderHistory(entries) {
+      const tbody = document.getElementById('log-body');
+      if (!Array.isArray(entries)) {
+        tbody.innerHTML = '<tr><td class="empty" colspan="3">History unavailable: ' + (entries.error || 'unknown error') + '</td></tr>';
+        return;
+      }
+      if (!entries.length) {
+        tbody.innerHTML = '<tr><td class="empty" colspan="3">No changes logged yet.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = entries.map(e => {
+        let dc = 'delta zero', dt = '—';
+        if (e.delta > 0)      { dc = 'delta up';   dt = '+' + fmt(e.delta); }
+        else if (e.delta < 0) { dc = 'delta down'; dt = fmt(e.delta); }
+        return '<tr><td class="ts">' + e.ts + '</td><td class="sold-val">' + fmt(e.sold) + '</td><td class="' + dc + '">' + dt + '</td></tr>';
+      }).join('');
+      const last = entries.find(e => e.delta !== null && e.delta !== 0);
+      if (last) {
+        const el = document.getElementById('sum-delta');
+        el.textContent = (last.delta > 0 ? '+' : '') + fmt(last.delta);
+        el.style.color = last.delta > 0 ? '#16a34a' : '#dc2626';
+        document.getElementById('sum-delta-time').textContent = 'at ' + last.ts.split(' ')[1] + ' KST';
+      }
+    }
+
+    async function refresh() {
+      if (!found) return;
       try {
-        let stock;
-        if (IS_IMINI) {
-          const data = await fetch('/api/stockImini?proId=' + IMINI_CFG.proId).then(r => r.json());
-          if (data.code !== '200') throw new Error(data.msg || 'imini error');
-          stock = parseInt(data.pro_stock, 10);
-        } else {
-          const data = await fetch('/api/stockPick?productId=' + PRODUCT_ID).then(r => r.json());
-          if (data.error || !data.id) throw new Error(data.error || 'product not found');
-          const opt = (data.options || []).find(o => o.id === OPTION_ID);
-          if (!opt) throw new Error('option not found');
-          stock = opt.stock;
+        // Poll first so the latest change is logged before the history is read
+        const data = await fetch('/api/poll', { cache: 'no-store' }).then(r => r.json());
+        if (data.error) throw new Error(data.error);
+        const opt = data.options.find(o => o.slug === SLUG);
+        if (!opt) {
+          found = false;
+          document.body.innerHTML = '<p style="padding:32px;color:#888">Not found. <a href="/">← Back</a></p>';
+          return;
         }
-        update(stock);
-        setStatus(true, 'Live · ' + tsNow().split(' ')[1]);
+        if (opt.sold === null) throw new Error('option missing from my1pick response');
+        renderHeader(opt, data.product);
+        const history = await fetch('/api/history?option=' + SLUG, { cache: 'no-store' })
+          .then(r => r.json()).catch(e => ({ error: e.message }));
+        renderHistory(history);
+        setStatus(true, 'Live · ' + data.ts.split(' ')[1] + ' KST');
       } catch (e) { setStatus(false, 'Error: ' + e.message); }
       startCountdown();
     }
 
-    loadHistory().then(() => {
-      fetchStock();
-      setInterval(fetchStock, INTERVAL);
-    });
+    refresh();
+    setInterval(refresh, INTERVAL);
   </script>
 </body>
 </html>

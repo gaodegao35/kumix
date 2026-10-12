@@ -1,23 +1,17 @@
-async function redis(token, url, command) {
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-    body: JSON.stringify(command),
-  });
-  return res.json();
-}
+const { config, redis } = require('../lib/redis');
+const { OPTIONS, MAX_ENTRIES, historyKey } = require('../lib/product');
 
 module.exports = async (req, res) => {
-  const url   = process.env.KV_REST_API_URL   || process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) { res.status(500).json({ error: 'Redis not configured' }); return; }
+  res.setHeader('Cache-Control', 'no-store');
+  const opt = OPTIONS.find(o => o.slug === req.query.option);
+  if (!opt) { res.status(400).json({ error: 'Unknown option' }); return; }
+  const cfg = config();
+  if (!cfg) { res.status(500).json({ error: 'Redis not configured' }); return; }
 
-  const key = req.query.key;
-  if (!key) { res.status(400).json({ error: 'Missing key' }); return; }
-
-  const result = await redis(token, url, ['LRANGE', 'log:' + key, 0, 1999]);
-  const entries = (result.result || []).map(e => JSON.parse(e));
-
-  res.setHeader('Content-Type', 'application/json');
-  res.end(JSON.stringify(entries));
+  try {
+    const result = await redis(cfg, ['LRANGE', 'log:' + historyKey(opt), 0, MAX_ENTRIES - 1]);
+    res.status(200).json((result.result || []).map(e => JSON.parse(e)));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 };

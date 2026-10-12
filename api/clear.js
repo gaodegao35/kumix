@@ -1,34 +1,20 @@
 // Redis log maintenance:
-//   ?delete=<key>     → wipe log:<key>
-//   ?purge=weidian    → delete every log:* key that is NOT a my1pick key (log:pick*)
-async function redis(token, url, command) {
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-    body: JSON.stringify(command),
-  });
-  return res.json();
-}
+//   ?purge=old   → delete every log:* key that does not belong to the current product
+const { config, redis } = require('../lib/redis');
+const { PRODUCT_ID } = require('../lib/product');
 
 module.exports = async (req, res) => {
-  const url   = process.env.KV_REST_API_URL   || process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) { res.status(500).json({ error: 'Redis not configured' }); return; }
+  const cfg = config();
+  if (!cfg) { res.status(500).json({ error: 'Redis not configured' }); return; }
+  if (req.query.purge !== 'old') { res.status(400).json({ error: 'use ?purge=old' }); return; }
 
-  if (req.query.delete) {
-    const redisKey = 'log:' + req.query.delete;
-    await redis(token, url, ['DEL', redisKey]);
-    res.status(200).json({ ok: true, deleted: req.query.delete });
-    return;
-  }
-
-  if (req.query.purge === 'weidian') {
-    const result = await redis(token, url, ['KEYS', 'log:*']);
-    const keys = (result.result || []).filter(k => !k.startsWith('log:pick'));
-    for (const k of keys) await redis(token, url, ['DEL', k]);
+  try {
+    const current = 'log:pick' + PRODUCT_ID + ':';
+    const result = await redis(cfg, ['KEYS', 'log:*']);
+    const keys = (result.result || []).filter(k => !k.startsWith(current));
+    for (const k of keys) await redis(cfg, ['DEL', k]);
     res.status(200).json({ ok: true, deleted: keys });
-    return;
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
-
-  res.status(400).json({ error: 'use ?delete=<key> or ?purge=weidian' });
 };

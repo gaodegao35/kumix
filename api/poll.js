@@ -1,92 +1,57 @@
-const PRODUCT_ID = '429';
-const MAX_STOCK = 9999;
-// imini.tv 线上视频通话2.0 products: proId → assumed initial stock
-const IMINI_PRODUCTS = { '59143360': 3709, '59143385': 3709 };
-const OPTION_NAMES = {
-  757: 'SPECIAL CAFE',
-  758: 'GROUP CALL',
-  759: 'BOHYEON',
-  760: 'HYO',
-  761: 'HARUTO',
-  762: 'JUNSEONG',
-  763: 'JAEIL',
-  764: 'KAI',
-  765: 'YEONTAE',
-  766: 'SECHAN'
-};
+// Fetches live stock for product 496, logs any change to Redis, and returns the current state.
+// Called every 15s by the open pages and by the GitHub Actions poller.
+const { config, redis } = require('../lib/redis');
+const { PRODUCT_ID, OPTIONS, MAX_ENTRIES, historyKey, tsNow } = require('../lib/product');
 
-async function redis(token, url, command) {
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-    body: JSON.stringify(command),
-  });
-  return res.json();
-}
-
-function tsNow() {
-  const d = new Date(), pad = n => String(n).padStart(2, '0');
-  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
-}
-
-async function saveIfChanged(redisUrl, redisToken, key, sales) {
+async function saveIfChanged(cfg, key, ts, sold) {
   const redisKey = 'log:' + key;
-  const last = await redis(redisToken, redisUrl, ['LINDEX', redisKey, 0]);
+  const last = await redis(cfg, ['LINDEX', redisKey, 0]);
   const lastSold = last.result ? JSON.parse(last.result).sold : null;
-  if (lastSold === sales) return false;
-  const delta = lastSold !== null ? sales - lastSold : null;
-  const entry = JSON.stringify({ ts: tsNow(), sold: sales, delta });
-  await redis(redisToken, redisUrl, ['LPUSH', redisKey, entry]);
-  await redis(redisToken, redisUrl, ['LTRIM', redisKey, 0, 1999]);
+  if (lastSold === sold) return false;
+  const delta = lastSold !== null ? sold - lastSold : null;
+  await redis(cfg, ['LPUSH', redisKey, JSON.stringify({ ts, sold, delta })]);
+  await redis(cfg, ['LTRIM', redisKey, 0, MAX_ENTRIES - 1]);
   return true;
 }
 
 module.exports = async (req, res) => {
-  const redisUrl   = process.env.KV_REST_API_URL   || process.env.UPSTASH_REDIS_REST_URL;
-  const redisToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+  res.setHeader('Cache-Control', 'no-store');
+  const ts = tsNow();
 
-  if (!redisUrl || !redisToken) {
-    res.status(500).json({ error: 'Redis not configured' });
-    return;
-  }
-
-  const changes = [];
+  let data;
   try {
     const apiUrl = `https://shop.my1pick.com/api/v1/common/products/${PRODUCT_ID}?displayChannel=WEB`;
-    const data = await fetch(apiUrl, { headers: { Accept: 'application/json' } }).then(r => r.json());
+    data = await fetch(apiUrl, { headers: { Accept: 'application/json' } }).then(r => r.json());
     if (!data.id) throw new Error('product not found');
-
-    for (const opt of data.options || []) {
-      const name = OPTION_NAMES[opt.id];
-      if (!name) continue;
-      const sales = MAX_STOCK - opt.stock;
-      const key = 'pick' + PRODUCT_ID + ':' + name;
-      const changed = await saveIfChanged(redisUrl, redisToken, key, sales);
-      if (changed) changes.push(name + '=' + sales);
-    }
-
-    for (const [proId, max] of Object.entries(IMINI_PRODUCTS)) {
-      const body = `username=xingjunwenhua&pro_id=${proId}&channel_id=27864757&regionCode=`;
-      const d = await fetch('https://www.imini.tv/mallorder/api/specinfo.php', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-          'X-Requested-With': 'XMLHttpRequest',
-          'Referer': `https://www.imini.tv/xingjunwenhua/wap_pro/${proId}.html`,
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0 Safari/537.36'
-        },
-        body
-      }).then(r => r.json());
-      if (d.code !== '200') continue;
-      const sales = max - parseInt(d.pro_stock, 10);
-      const key = 'imini' + proId;
-      const changed = await saveIfChanged(redisUrl, redisToken, key, sales);
-      if (changed) changes.push(key + '=' + sales);
-    }
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(502).json({ error: 'my1pick: ' + e.message, ts });
     return;
   }
 
-  res.status(200).json({ ok: true, changes, ts: tsNow() });
+  const options = OPTIONS.map(opt => {
+    const apiOpt = (data.options || []).find(o => o.id === opt.id);
+    const stock = apiOpt ? apiOpt.stock : null;
+    return { slug: opt.slug, name: opt.name, label: opt.label, base: opt.base, stock,
+             sold: stock === null ? null : opt.base - stock };
+  });
+
+  // Logging is best-effort: live numbers are still returned if Redis is down.
+  const changes = [];
+  let redisError = null;
+  const cfg = config();
+  if (!cfg) redisError = 'Redis not configured';
+  else {
+    try {
+      for (const [i, opt] of OPTIONS.entries()) {
+        const sold = options[i].sold;
+        if (sold !== null && await saveIfChanged(cfg, historyKey(opt), ts, sold)) changes.push(opt.name + '=' + sold);
+      }
+    } catch (e) { redisError = e.message; }
+  }
+
+  res.status(200).json({
+    ok: true, ts, changes, redisError,
+    product: { id: data.id, name: data.name.trim(), status: data.status, saleStartAt: data.saleStartAt, saleEndAt: data.saleEndAt },
+    options,
+  });
 };

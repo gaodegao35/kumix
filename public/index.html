@@ -3,13 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>YUHZ CAFE&CALL — Sales Tracker</title>
+  <title>YUHZ MEET&amp;CALL — Sales Tracker</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #111; min-height: 100vh; padding: 32px 24px; }
     a { color: inherit; text-decoration: none; }
     h1 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
     .subtitle { font-size: 13px; color: #888; margin-bottom: 24px; }
+    .hint { font-size: 12px; color: #aaa; margin-top: 16px; }
     .warning { background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #92400e; margin-bottom: 20px; display: flex; gap: 8px; align-items: flex-start; line-height: 1.5; }
     .status-bar { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #888; margin-bottom: 20px; }
     .dot { width: 8px; height: 8px; border-radius: 50%; background: #ccc; }
@@ -34,12 +35,12 @@
   </style>
 </head>
 <body>
-  <h1>YUHZ [Orange Record] CAFE&amp;CALL EVENT</h1>
-  <p class="subtitle">my1pick #429 · Polls every 15s · Sold = 9,999 − current stock</p>
+  <h1>YUHZ 1st EP [B] MEET &amp; CALL EVENT</h1>
+  <p class="subtitle" id="subtitle">my1pick #496 · Updates every 15s</p>
 
   <div class="warning">
     <span>⚠</span>
-    <span>Sold counts assume every option started at 9,999 stock. If the shop restocks or the initial stock differs, counts will be off.</span>
+    <span>Sold = starting stock − current stock, with Offline starting at 9,974 and Online at 9,999. If the shop restocks or the real starting stock differs, counts will be off.</span>
   </div>
 
   <div class="status-bar">
@@ -48,81 +49,52 @@
     <span class="next-refresh" id="next-refresh"></span>
   </div>
 
-  <div class="section-label">Events</div>
-  <div class="grid" id="grid-events"></div>
-
-  <div class="section-label">1:1 Video Call — By Member</div>
-  <div class="grid" id="grid-members"></div>
-
-  <div class="section-label">imini.tv — 线上视频通话2.0 (非大陆)</div>
-  <div class="grid" id="grid-imini"></div>
+  <div class="grid" id="grid"></div>
+  <p class="hint" id="hint"></p>
 
   <script>
-    const PRODUCT_ID = '429';
-    const MAX_STOCK = 9999;
     const INTERVAL = 15000;
-    // my1pick option id → display name; section: which grid the card goes in
     const OPTIONS = [
-      { id: 757, name: 'SPECIAL CAFE', section: 'events' },
-      { id: 758, name: 'GROUP CALL',   section: 'events' },
-      { id: 759, name: 'BOHYEON',  section: 'members' },
-      { id: 760, name: 'HYO',      section: 'members' },
-      { id: 761, name: 'HARUTO',   section: 'members' },
-      { id: 762, name: 'JUNSEONG', section: 'members' },
-      { id: 763, name: 'JAEIL',    section: 'members' },
-      { id: 764, name: 'KAI',      section: 'members' },
-      { id: 765, name: 'YEONTAE',  section: 'members' },
-      { id: 766, name: 'SECHAN',   section: 'members' },
-      { id: 'imini59143360', proId: '59143360', name: '大陆 CN',     section: 'imini', max: 3709 },
-      { id: 'imini59143385', proId: '59143385', name: '非大陆 INTL', section: 'imini', max: 3709 }
+      { slug: 'offline', title: 'OFFLINE · 대면 팬사인회' },
+      { slug: 'online',  title: 'ONLINE · 영상통화' }
     ];
 
     let prevSales = {}, countdownTimer;
     function fmt(n) { return n.toLocaleString(); }
-    function now() { return new Date().toLocaleTimeString('en-US', { hour12: false }); }
 
     function buildGrid() {
       OPTIONS.forEach(opt => {
         const card = document.createElement('a');
         card.className = 'card';
-        card.id = 'card-' + opt.id;
-        card.href = '/option/' + encodeURIComponent(opt.name);
+        card.id = 'card-' + opt.slug;
+        card.href = '/option/' + opt.slug;
         card.innerHTML = `
-          <div class="member-name">${opt.name}<span class="arrow">→</span></div>
+          <div class="member-name">${opt.title}<span class="arrow">→</span></div>
           <div class="sales-row">
-            <div class="sales-count" id="sales-${opt.id}">—</div>
+            <div class="sales-count" id="sales-${opt.slug}">—</div>
             <div class="sales-label">sold</div>
           </div>
-          <div class="stock-sub" id="stock-${opt.id}"></div>
-          <div class="delta-badge" id="badge-${opt.id}"></div>`;
-        document.getElementById('grid-' + opt.section).appendChild(card);
+          <div class="stock-sub" id="stock-${opt.slug}"></div>
+          <div class="delta-badge" id="badge-${opt.slug}"></div>`;
+        document.getElementById('grid').appendChild(card);
       });
     }
 
-    function updateCard(opt, stock, max) {
-      const sales = max - stock;
-      document.getElementById('sales-' + opt.id).textContent = fmt(sales);
-      document.getElementById('stock-' + opt.id).textContent = fmt(stock) + ' left of ' + fmt(max);
-      const prev = prevSales[opt.id];
-      if (prev !== undefined && sales !== prev) {
-        const delta = sales - prev;
-        const badge = document.getElementById('badge-' + opt.id);
-        const card  = document.getElementById('card-'  + opt.id);
+    function updateCard(opt) {
+      if (opt.sold === null) return;
+      document.getElementById('sales-' + opt.slug).textContent = fmt(opt.sold);
+      document.getElementById('stock-' + opt.slug).textContent = fmt(opt.stock) + ' left of ' + fmt(opt.base);
+      const prev = prevSales[opt.slug];
+      if (prev !== undefined && opt.sold !== prev) {
+        const delta = opt.sold - prev;
+        const badge = document.getElementById('badge-' + opt.slug);
+        const card  = document.getElementById('card-'  + opt.slug);
         badge.textContent = (delta > 0 ? '+' : '') + fmt(delta);
         badge.className = 'delta-badge visible ' + (delta > 0 ? 'up' : 'down');
         card.classList.add('changed');
         setTimeout(() => { badge.classList.remove('visible'); card.classList.remove('changed'); }, 5000);
       }
-      prevSales[opt.id] = sales;
-    }
-
-    function update(data) {
-      OPTIONS.forEach(opt => {
-        if (opt.proId) return;
-        const apiOpt = (data.options || []).find(o => o.id === opt.id);
-        if (!apiOpt) return;
-        updateCard(opt, apiOpt.stock, MAX_STOCK);
-      });
+      prevSales[opt.slug] = opt.sold;
     }
 
     function setStatus(ok, text) {
@@ -143,21 +115,17 @@
     }
 
     async function fetchStock() {
-      let ok = true, errMsg = '';
-      const iminiOpts = OPTIONS.filter(o => o.proId);
-      await Promise.all([
-        fetch('/api/stockPick?productId=' + PRODUCT_ID).then(r => r.json()).then(data => {
-          if (data.error || !data.id) throw new Error(data.error || 'product not found');
-          update(data);
-        }).catch(e => { ok = false; errMsg = e.message; }),
-        ...iminiOpts.map(opt =>
-          fetch('/api/stockImini?proId=' + opt.proId).then(r => r.json()).then(data => {
-            if (data.code !== '200') throw new Error(data.msg || 'imini error');
-            updateCard(opt, parseInt(data.pro_stock, 10), opt.max);
-          }).catch(e => { ok = false; errMsg = e.message; })
-        )
-      ]);
-      setStatus(ok, ok ? 'Live · ' + now() : 'Error: ' + errMsg);
+      try {
+        const data = await fetch('/api/poll', { cache: 'no-store' }).then(r => r.json());
+        if (data.error) throw new Error(data.error);
+        data.options.forEach(updateCard);
+        const p = data.product;
+        document.getElementById('subtitle').textContent =
+          'my1pick #' + p.id + ' · ' + p.status + ' · Sale ' + p.saleStartAt.replace('T', ' ').slice(0, 16) +
+          ' ~ ' + p.saleEndAt.replace('T', ' ').slice(0, 16) + ' KST · Updates every 15s';
+        document.getElementById('hint').textContent = data.redisError ? 'History logging unavailable: ' + data.redisError : '';
+        setStatus(true, 'Live · ' + data.ts.split(' ')[1] + ' KST');
+      } catch (e) { setStatus(false, 'Error: ' + e.message); }
       startCountdown();
     }
 
