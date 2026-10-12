@@ -50,7 +50,7 @@ module.exports = async (req, res) => {
   }
 
   res.status(200).json({
-    ok: true, ts, changes, redisError,
+    ok: true, ts, changes, redisError, redisSource: cfg ? cfg.source : null,
     product: { id: data.id, name: data.name.trim(), status: data.status, saleStartAt: data.saleStartAt, saleEndAt: data.saleEndAt },
     options,
   });
