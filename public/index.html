@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>YUHZ MEET&amp;CALL — Sales Tracker</title>
+  <title>YUHZ Video Fansign — Sales Tracker</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #111; min-height: 100vh; padding: 32px 24px; }
@@ -35,12 +35,12 @@
   </style>
 </head>
 <body>
-  <h1>YUHZ 1st EP [B] MEET &amp; CALL EVENT</h1>
-  <p class="subtitle" id="subtitle">my1pick #496 · Updates every 15s</p>
+  <h1>YUHZ 1ST EP [B] · 团体视频签售 (10/26)</h1>
+  <p class="subtitle" id="subtitle">Weidian #7872096927 · Updates every 15s</p>
 
   <div class="warning">
     <span>⚠</span>
-    <span>Sold = starting stock − current stock, with both Offline and Online starting at 9,999. If the shop restocks or the real starting stock differs, counts will be off.</span>
+    <span>Sold = 999,999,999 − current stock. If the shop restocks or the real starting stock differs, counts will be off.</span>
   </div>
 
   <div class="status-bar">
@@ -55,8 +55,7 @@
   <script>
     const INTERVAL = 15000;
     const OPTIONS = [
-      { slug: 'offline', title: 'OFFLINE · 대면 팬사인회' },
-      { slug: 'online',  title: 'ONLINE · 영상통화' }
+      { slug: 'weidian', title: 'WEIDIAN · 团体视频签售' }
     ];
 
     let prevSales = {}, countdownTimer;
@@ -121,8 +120,7 @@
         data.options.forEach(updateCard);
         const p = data.product;
         document.getElementById('subtitle').textContent =
-          'my1pick #' + p.id + ' · ' + p.status + ' · Sale ' + p.saleStartAt.replace('T', ' ').slice(0, 16) +
-          ' ~ ' + p.saleEndAt.replace('T', ' ').slice(0, 16) + ' KST · Updates every 15s';
+          'Weidian #' + p.id + ' · ' + p.name + ' · ¥' + p.price + ' · Updates every 15s';
         document.getElementById('hint').textContent = data.redisError ? 'History logging unavailable: ' + data.redisError : '';
         setStatus(true, 'Live · ' + data.ts.split(' ')[1] + ' KST');
       } catch (e) { setStatus(false, 'Error: ' + e.message); }
