@@ -26,8 +26,8 @@
     caption { text-align: left; font-size: 15px; font-weight: 700; padding: 14px 16px 10px; background: #fff; border: 1px solid #e0e0e0; border-bottom: none; border-radius: 10px 10px 0 0; }
     th { text-align: left; font-size: 13px; font-weight: 700; padding: 10px 16px; background: #fff; border-bottom: 2px solid #e0e0e0; color: #111; }
     th:last-child, td:last-child { text-align: right; }
-    caption { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-    .sort-btn { font: inherit; font-size: 12px; font-weight: 600; color: #333; background: #f5f5f5; border: 1px solid #ddd; border-radius: 6px; padding: 5px 10px; cursor: pointer; white-space: nowrap; }
+    .toolbar { margin-bottom: 16px; }
+    .sort-btn { font: inherit; font-size: 13px; font-weight: 600; color: #333; background: #f5f5f5; border: 1px solid #ddd; border-radius: 6px; padding: 7px 12px; cursor: pointer; white-space: nowrap; }
     .sort-btn:hover { border-color: #aaa; }
     .sort-btn.active { color: #fff; background: #111; border-color: #111; }
     th.seq, td.seq { width: 1%; color: #aaa; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -46,6 +46,10 @@
   <a class="back" id="back-link" href="/">← All Options</a>
   <h1 id="page-title">—</h1>
   <p class="meta" id="page-meta"></p>
+
+  <div class="toolbar">
+    <button class="sort-btn" id="sort-btn" type="button">Sort: change high → low</button>
+  </div>
 
   <div class="status-bar">
     <div class="dot" id="dot"></div>
@@ -72,7 +76,7 @@
   </div>
 
   <table>
-    <caption><span id="table-caption">sold_log</span><button class="sort-btn" id="sort-btn" type="button">Sort: change high → low</button></caption>
+    <caption id="table-caption">sold_log</caption>
     <thead><tr><th class="seq">#</th><th>timestamp</th><th>sold</th><th>change</th></tr></thead>
     <tbody id="log-body"></tbody>
   </table>
