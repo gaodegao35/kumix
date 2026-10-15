@@ -26,6 +26,11 @@
     caption { text-align: left; font-size: 15px; font-weight: 700; padding: 14px 16px 10px; background: #fff; border: 1px solid #e0e0e0; border-bottom: none; border-radius: 10px 10px 0 0; }
     th { text-align: left; font-size: 13px; font-weight: 700; padding: 10px 16px; background: #fff; border-bottom: 2px solid #e0e0e0; color: #111; }
     th:last-child, td:last-child { text-align: right; }
+    caption { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .sort-btn { font: inherit; font-size: 12px; font-weight: 600; color: #333; background: #f5f5f5; border: 1px solid #ddd; border-radius: 6px; padding: 5px 10px; cursor: pointer; white-space: nowrap; }
+    .sort-btn:hover { border-color: #aaa; }
+    .sort-btn.active { color: #fff; background: #111; border-color: #111; }
+    th.seq, td.seq { width: 1%; color: #aaa; font-variant-numeric: tabular-nums; white-space: nowrap; }
     td { padding: 9px 16px; font-size: 14px; font-weight: 600; border-bottom: 1px solid #f0f0f0; color: #111; }
     tr:last-child td { border-bottom: none; }
     td.ts { font-variant-numeric: tabular-nums; color: #333; }
@@ -67,8 +72,8 @@
   </div>
 
   <table>
-    <caption id="table-caption">sold_log</caption>
-    <thead><tr><th>timestamp</th><th>sold</th><th>change</th></tr></thead>
+    <caption><span id="table-caption">sold_log</span><button class="sort-btn" id="sort-btn" type="button">Sort: change high → low</button></caption>
+    <thead><tr><th class="seq">#</th><th>timestamp</th><th>sold</th><th>change</th></tr></thead>
     <tbody id="log-body"></tbody>
   </table>
 
@@ -77,6 +82,7 @@
     const SLUG = decodeURIComponent(window.location.pathname.split('/')[2] || '').toLowerCase();
 
     let countdownTimer, found = true;
+    let lastEntries = null, sortByChange = false;
     function fmt(n) { return n.toLocaleString(); }
 
     function setStatus(ok, text) {
@@ -109,20 +115,24 @@
     }
 
     function renderHistory(entries) {
+      lastEntries = entries;
       const tbody = document.getElementById('log-body');
       if (!Array.isArray(entries)) {
-        tbody.innerHTML = '<tr><td class="empty" colspan="3">History unavailable: ' + (entries.error || 'unknown error') + '</td></tr>';
+        tbody.innerHTML = '<tr><td class="empty" colspan="4">History unavailable: ' + (entries.error || 'unknown error') + '</td></tr>';
         return;
       }
       if (!entries.length) {
-        tbody.innerHTML = '<tr><td class="empty" colspan="3">No changes logged yet.</td></tr>';
+        tbody.innerHTML = '<tr><td class="empty" colspan="4">No changes logged yet.</td></tr>';
         return;
       }
-      tbody.innerHTML = entries.map(e => {
+      // entries arrive newest first; # counts up from the oldest and stays with its row when sorted
+      let rows = entries.map((e, i) => ({ ...e, seq: entries.length - i }));
+      if (sortByChange) rows = [...rows].sort((a, b) => (b.delta ?? -Infinity) - (a.delta ?? -Infinity) || b.seq - a.seq);
+      tbody.innerHTML = rows.map(e => {
         let dc = 'delta zero', dt = '—';
         if (e.delta > 0)      { dc = 'delta up';   dt = '+' + fmt(e.delta); }
         else if (e.delta < 0) { dc = 'delta down'; dt = fmt(e.delta); }
-        return '<tr><td class="ts">' + e.ts + '</td><td class="sold-val">' + fmt(e.sold) + '</td><td class="' + dc + '">' + dt + '</td></tr>';
+        return '<tr><td class="seq">' + e.seq + '</td><td class="ts">' + e.ts + '</td><td class="sold-val">' + fmt(e.sold) + '</td><td class="' + dc + '">' + dt + '</td></tr>';
       }).join('');
       const last = entries.find(e => e.delta !== null && e.delta !== 0);
       if (last) {
@@ -154,6 +164,13 @@
       } catch (e) { setStatus(false, 'Error: ' + e.message); }
       startCountdown();
     }
+
+    document.getElementById('sort-btn').addEventListener('click', e => {
+      sortByChange = !sortByChange;
+      e.currentTarget.classList.toggle('active', sortByChange);
+      e.currentTarget.textContent = sortByChange ? 'Sort: newest first' : 'Sort: change high → low';
+      if (lastEntries) renderHistory(lastEntries);
+    });
 
     refresh();
     setInterval(refresh, INTERVAL);
