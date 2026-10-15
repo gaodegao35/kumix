@@ -100,7 +100,7 @@
       document.title = opt.name + ' sold_log · YUHZ Video Fansign';
       document.getElementById('page-title').textContent = opt.name + '-sold_log';
       document.getElementById('page-meta').textContent =
-        opt.label + ' · Weidian #' + product.id + ' · Starting stock: ' + fmt(opt.base);
+        opt.label + (opt.itemId ? ' · Weidian #' + opt.itemId : '') + ' · Starting stock: ' + fmt(opt.base);
       document.getElementById('table-caption').textContent = opt.name + '-sold_log (KST)';
       document.getElementById('sum-sold').textContent = fmt(opt.sold);
       document.getElementById('sum-sold-sub').textContent = 'of ' + fmt(opt.base) + ' starting stock';

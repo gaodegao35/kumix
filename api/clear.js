@@ -1,14 +1,14 @@
 // Redis log maintenance:
-//   ?purge=old       → delete every log:* key that does not belong to the current item
+//   ?purge=old       → delete every log:* key that does not belong to the current items
 //   ?delete=<slug>   → wipe one option's history (e.g. after correcting its base stock)
 const { config, redis } = require('../lib/redis');
-const { OPTIONS, KEY_PREFIX, historyKey } = require('../lib/product');
+const { TRACKED, KEY_PREFIX, historyKey } = require('../lib/product');
 
 module.exports = async (req, res) => {
   const cfg = config();
   if (!cfg) { res.status(500).json({ error: 'Redis not configured' }); return; }
   if (req.query.delete) {
-    const opt = OPTIONS.find(o => o.slug === req.query.delete);
+    const opt = TRACKED.find(o => o.slug === req.query.delete);
     if (!opt) { res.status(400).json({ error: 'Unknown option' }); return; }
     try {
       await redis(cfg, ['DEL', 'log:' + historyKey(opt)]);

@@ -1,7 +1,7 @@
-// Fetches live stock for the Weidian item, logs any change to Redis, and returns the current state.
+// Fetches live stock for the Weidian items, logs any change to Redis, and returns the current state.
 // Called every 15s by the open pages and by the GitHub Actions poller.
 const { config, redis } = require('../lib/redis');
-const { ITEM_ID, SOURCE_URL, OPTIONS, MAX_ENTRIES, historyKey, tsNow } = require('../lib/product');
+const { ITEMS, TOTAL, MAX_ENTRIES, historyKey, sourceUrl, tsNow } = require('../lib/product');
 
 async function saveIfChanged(cfg, key, ts, sold) {
   const redisKey = 'log:' + key;
@@ -18,29 +18,39 @@ module.exports = async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   const ts = tsNow();
 
-  let item;
-  try {
-    const data = await fetch(SOURCE_URL, {
+  // Items have no SKUs: each item's single itemStock is one tracked count.
+  async function fetchItem(opt) {
+    const data = await fetch(sourceUrl(opt.itemId), {
       headers: {
         Accept: 'application/json',
-        Referer: 'https://weidian.com/item.html?itemID=' + ITEM_ID,
+        Referer: 'https://weidian.com/item.html?itemID=' + opt.itemId,
         'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0 Safari/537.36',
       },
     }).then(r => r.json());
-    item = data.result;
+    const item = data.result;
     if (!data.status || data.status.code !== 0 || !item || typeof item.itemStock !== 'number') {
-      throw new Error((data.status && data.status.message) || 'item not found');
+      throw new Error(opt.name + ': ' + ((data.status && data.status.message) || 'item not found'));
     }
+    return item;
+  }
+
+  let items;
+  try {
+    items = await Promise.all(ITEMS.map(fetchItem));
   } catch (e) {
+    // All-or-nothing, so the combined total is never logged from a partial read
     res.status(502).json({ error: 'weidian: ' + e.message, ts });
     return;
   }
 
-  // The item has no SKUs: its single itemStock feeds the one tracked option.
-  const options = OPTIONS.map(opt => ({
-    slug: opt.slug, name: opt.name, label: opt.label, base: opt.base,
-    stock: item.itemStock, sold: opt.base - item.itemStock,
+  const perItem = ITEMS.map((opt, i) => ({
+    slug: opt.slug, name: opt.name, label: opt.label, itemId: opt.itemId, base: opt.base,
+    stock: items[i].itemStock, sold: opt.base - items[i].itemStock,
   }));
+  const sum = key => perItem.reduce((n, o) => n + o[key], 0);
+  const total = { slug: TOTAL.slug, name: TOTAL.name, label: TOTAL.label, base: sum('base'), stock: sum('stock'), sold: sum('sold') };
+  const options = [total, ...perItem];
+  const tracked = [TOTAL, ...ITEMS];
 
   // Logging is best-effort: live numbers are still returned if Redis is down.
   const changes = [];
@@ -49,16 +59,16 @@ module.exports = async (req, res) => {
   if (!cfg) redisError = 'Redis not configured';
   else {
     try {
-      for (const [i, opt] of OPTIONS.entries()) {
+      for (const [i, opt] of tracked.entries()) {
         const sold = options[i].sold;
-        if (sold !== null && await saveIfChanged(cfg, historyKey(opt), ts, sold)) changes.push(opt.name + '=' + sold);
+        if (await saveIfChanged(cfg, historyKey(opt), ts, sold)) changes.push(opt.name + '=' + sold);
       }
     } catch (e) { redisError = e.message; }
   }
 
   res.status(200).json({
     ok: true, ts, changes, redisError, redisSource: cfg ? cfg.source : null, trackerVars: cfg && cfg.trackerVars,
-    product: { id: item.itemId, name: item.itemTitle.replace(/\s+/g, ' ').trim(), price: item.itemDiscountLowPrice / 100 },
+    product: { name: items[0].itemTitle.replace(/\s+/g, ' ').replace(/（[^）]*）\s*$/, '').trim(), price: items[0].itemDiscountLowPrice / 100 },
     options,
   });
 };

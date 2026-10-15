@@ -36,11 +36,11 @@
 </head>
 <body>
   <h1>YUHZ 1ST EP [B] · 团体视频签售 (10/26)</h1>
-  <p class="subtitle" id="subtitle">Weidian #7872096927 · Updates every 15s</p>
+  <p class="subtitle" id="subtitle">Weidian #7872096927 (KR) + #7872077027 (CN) · Updates every 15s</p>
 
   <div class="warning">
     <span>⚠</span>
-    <span>Sold = 999,999,999 − current stock. If the shop restocks or the real starting stock differs, counts will be off.</span>
+    <span>Sold = 999,999,999 − current stock for each item; Total = KR + CN. If the shop restocks or the real starting stock differs, counts will be off.</span>
   </div>
 
   <div class="status-bar">
@@ -49,13 +49,19 @@
     <span class="next-refresh" id="next-refresh"></span>
   </div>
 
-  <div class="grid" id="grid"></div>
+  <div class="section-label">Combined</div>
+  <div class="grid" id="grid-total"></div>
+
+  <div class="section-label">By Shipping Region</div>
+  <div class="grid" id="grid-items"></div>
   <p class="hint" id="hint"></p>
 
   <script>
     const INTERVAL = 15000;
     const OPTIONS = [
-      { slug: 'weidian', title: 'WEIDIAN · 团体视频签售' }
+      { slug: 'total', title: 'TOTAL · KR + CN', section: 'total' },
+      { slug: 'kr',    title: 'KR · 配送韩国地址', section: 'items' },
+      { slug: 'cn',    title: 'CN · 配送大陆地址', section: 'items' }
     ];
 
     let prevSales = {}, countdownTimer;
@@ -75,14 +81,15 @@
           </div>
           <div class="stock-sub" id="stock-${opt.slug}"></div>
           <div class="delta-badge" id="badge-${opt.slug}"></div>`;
-        document.getElementById('grid').appendChild(card);
+        document.getElementById('grid-' + opt.section).appendChild(card);
       });
     }
 
-    function updateCard(opt) {
-      if (opt.sold === null) return;
+    function updateCard(opt, all) {
       document.getElementById('sales-' + opt.slug).textContent = fmt(opt.sold);
-      document.getElementById('stock-' + opt.slug).textContent = fmt(opt.stock) + ' left of ' + fmt(opt.base);
+      document.getElementById('stock-' + opt.slug).textContent = opt.slug === 'total'
+        ? all.filter(o => o.slug !== 'total').map(o => o.name + ' ' + fmt(o.sold)).join(' + ')
+        : fmt(opt.stock) + ' left of ' + fmt(opt.base);
       const prev = prevSales[opt.slug];
       if (prev !== undefined && opt.sold !== prev) {
         const delta = opt.sold - prev;
@@ -117,10 +124,10 @@
       try {
         const data = await fetch('/api/poll', { cache: 'no-store' }).then(r => r.json());
         if (data.error) throw new Error(data.error);
-        data.options.forEach(updateCard);
+        data.options.forEach(o => updateCard(o, data.options));
         const p = data.product;
         document.getElementById('subtitle').textContent =
-          'Weidian #' + p.id + ' · ' + p.name + ' · ¥' + p.price + ' · Updates every 15s';
+          p.name + ' · ¥' + p.price + ' each · Weidian #7872096927 (KR) + #7872077027 (CN) · Updates every 15s';
         document.getElementById('hint').textContent = data.redisError ? 'History logging unavailable: ' + data.redisError : '';
         setStatus(true, 'Live · ' + data.ts.split(' ')[1] + ' KST');
       } catch (e) { setStatus(false, 'Error: ' + e.message); }

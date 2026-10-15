@@ -1,9 +1,9 @@
 const { config, redis } = require('../lib/redis');
-const { OPTIONS, MAX_ENTRIES, historyKey } = require('../lib/product');
+const { TRACKED, MAX_ENTRIES, historyKey } = require('../lib/product');
 
 module.exports = async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
-  const opt = OPTIONS.find(o => o.slug === req.query.option);
+  const opt = TRACKED.find(o => o.slug === req.query.option);
   if (!opt) { res.status(400).json({ error: 'Unknown option' }); return; }
   const cfg = config();
   if (!cfg) { res.status(500).json({ error: 'Redis not configured' }); return; }
