@@ -4,6 +4,9 @@ on:
   schedule:
     - cron: '*/30 * * * *'
   workflow_dispatch:
+  # Start polling as soon as a new tracker config is pushed
+  push:
+    branches: [main]
 
 # A new run takes over from the previous one so hits don't double up,
 # and each run loops for up to ~6h, so late or skipped scheduled starts leave no gap.
