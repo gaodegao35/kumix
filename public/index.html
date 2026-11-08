@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>YUHZ Video Fansign — Sales Tracker</title>
+  <title>YUHZ Special Event — Sales Tracker</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #111; min-height: 100vh; padding: 32px 24px; }
@@ -35,12 +35,12 @@
   </style>
 </head>
 <body>
-  <h1>YUHZ 1ST EP [B] · 团体视频签售 (10/26)</h1>
-  <p class="subtitle" id="subtitle">Weidian #7872096927 (KR) + #7872077027 (CN) · Updates every 15s</p>
+  <h1>YUHZ 1ST EP [B] · 발매기념 SPECIAL EVENT</h1>
+  <p class="subtitle" id="subtitle">my1pick #512 · Updates every 15s</p>
 
   <div class="warning">
     <span>⚠</span>
-    <span>Sold = 999,999,999 − current stock for each item; Total = KR + CN. If the shop restocks or the real starting stock differs, counts will be off.</span>
+    <span>Sold = 9,999 − current stock for each option; totals add up the options. If the shop restocks or the real starting stock differs, counts will be off.</span>
   </div>
 
   <div class="status-bar">
@@ -52,16 +52,27 @@
   <div class="section-label">Combined</div>
   <div class="grid" id="grid-total"></div>
 
-  <div class="section-label">By Shipping Region</div>
-  <div class="grid" id="grid-items"></div>
+  <div class="section-label">Cafe Event · Group Video Call</div>
+  <div class="grid" id="grid-event"></div>
+
+  <div class="section-label">1:1 DIY Event</div>
+  <div class="grid" id="grid-diy"></div>
   <p class="hint" id="hint"></p>
 
   <script>
     const INTERVAL = 15000;
     const OPTIONS = [
-      { slug: 'total', title: 'TOTAL · KR + CN', section: 'total' },
-      { slug: 'kr',    title: 'KR · 配送韩国地址', section: 'items' },
-      { slug: 'cn',    title: 'CN · 配送大陆地址', section: 'items' }
+      { slug: 'total',     title: 'TOTAL · All options', section: 'total' },
+      { slug: 'diy-total', title: 'DIY TOTAL · 7 members', section: 'total' },
+      { slug: 'cafe',      title: 'CAFE · 카페 이벤트',   section: 'event' },
+      { slug: 'call',      title: 'CALL · 단체 영상통화', section: 'event' },
+      { slug: 'junseong',  title: 'JUNSEONG · 준성', section: 'diy' },
+      { slug: 'bohyeon',   title: 'BOHYEON · 보현',  section: 'diy' },
+      { slug: 'sechan',    title: 'SECHAN · 세찬',   section: 'diy' },
+      { slug: 'yeontae',   title: 'YEONTAE · 연태',  section: 'diy' },
+      { slug: 'kai',       title: 'KAI · 카이',      section: 'diy' },
+      { slug: 'hyo',       title: 'HYO · 효',        section: 'diy' },
+      { slug: 'jaeil',     title: 'JAEIL · 재일',    section: 'diy' }
     ];
 
     let prevSales = {}, countdownTimer;
@@ -88,7 +99,7 @@
     function updateCard(opt, all) {
       document.getElementById('sales-' + opt.slug).textContent = fmt(opt.sold);
       document.getElementById('stock-' + opt.slug).textContent = opt.slug === 'total'
-        ? all.filter(o => o.slug !== 'total').map(o => o.name + ' ' + fmt(o.sold)).join(' + ')
+        ? ['CAFE', 'CALL', 'DIY-TOTAL'].map(n => { const o = all.find(x => x.name === n); return n.replace('-TOTAL', '') + ' ' + fmt(o.sold); }).join(' + ')
         : fmt(opt.stock) + ' left of ' + fmt(opt.base);
       const prev = prevSales[opt.slug];
       if (prev !== undefined && opt.sold !== prev) {
@@ -127,7 +138,7 @@
         data.options.forEach(o => updateCard(o, data.options));
         const p = data.product;
         document.getElementById('subtitle').textContent =
-          p.name + ' · ¥' + p.price + ' each · Weidian #7872096927 (KR) + #7872077027 (CN) · Updates every 15s';
+          p.name + ' · ₩' + fmt(p.price) + ' each · my1pick #' + p.id + ' · Updates every 15s';
         document.getElementById('hint').textContent = data.redisError ? 'History logging unavailable: ' + data.redisError : '';
         setStatus(true, 'Live · ' + data.ts.split(' ')[1] + ' KST');
       } catch (e) { setStatus(false, 'Error: ' + e.message); }

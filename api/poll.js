@@ -1,7 +1,7 @@
-// Fetches live stock for the Weidian items, logs any change to Redis, and returns the current state.
+// Fetches live stock for my1pick product 512, logs any change to Redis, and returns the current state.
 // Called every 15s by the open pages and by the GitHub Actions poller.
 const { config, redis } = require('../lib/redis');
-const { ITEMS, TOTAL, MAX_ENTRIES, historyKey, sourceUrl, tsNow } = require('../lib/product');
+const { PRODUCT_ID, OPTIONS, TOTALS, MAX_ENTRIES, historyKey, sourceUrl, tsNow } = require('../lib/product');
 
 async function saveIfChanged(cfg, key, ts, sold) {
   const redisKey = 'log:' + key;
@@ -18,39 +18,29 @@ module.exports = async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   const ts = tsNow();
 
-  // Items have no SKUs: each item's single itemStock is one tracked count.
-  async function fetchItem(opt) {
-    const data = await fetch(sourceUrl(opt.itemId), {
-      headers: {
-        Accept: 'application/json',
-        Referer: 'https://weidian.com/item.html?itemID=' + opt.itemId,
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0 Safari/537.36',
-      },
-    }).then(r => r.json());
-    const item = data.result;
-    if (!data.status || data.status.code !== 0 || !item || typeof item.itemStock !== 'number') {
-      throw new Error(opt.name + ': ' + ((data.status && data.status.message) || 'item not found'));
-    }
-    return item;
-  }
-
-  let items;
+  let data, perOption;
   try {
-    items = await Promise.all(ITEMS.map(fetchItem));
+    data = await fetch(sourceUrl(), { headers: { Accept: 'application/json' } }).then(r => r.json());
+    if (!data.id) throw new Error('product not found');
+    perOption = OPTIONS.map(opt => {
+      const apiOpt = (data.options || []).find(o => o.id === opt.id);
+      // All-or-nothing, so the combined totals are never logged from a partial read
+      if (!apiOpt || typeof apiOpt.stock !== 'number') throw new Error('option ' + opt.id + ' (' + opt.name + ') missing');
+      return { slug: opt.slug, name: opt.name, group: opt.group, label: opt.label, optionId: opt.id,
+               base: opt.base, stock: apiOpt.stock, sold: opt.base - apiOpt.stock };
+    });
   } catch (e) {
-    // All-or-nothing, so the combined total is never logged from a partial read
-    res.status(502).json({ error: 'weidian: ' + e.message, ts });
+    res.status(502).json({ error: 'my1pick: ' + e.message, ts });
     return;
   }
 
-  const perItem = ITEMS.map((opt, i) => ({
-    slug: opt.slug, name: opt.name, label: opt.label, itemId: opt.itemId, base: opt.base,
-    stock: items[i].itemStock, sold: opt.base - items[i].itemStock,
-  }));
-  const sum = key => perItem.reduce((n, o) => n + o[key], 0);
-  const total = { slug: TOTAL.slug, name: TOTAL.name, label: TOTAL.label, base: sum('base'), stock: sum('stock'), sold: sum('sold') };
-  const options = [total, ...perItem];
-  const tracked = [TOTAL, ...ITEMS];
+  const totals = TOTALS.map(t => {
+    const parts = perOption.filter(t.of);
+    const sum = key => parts.reduce((n, o) => n + o[key], 0);
+    return { slug: t.slug, name: t.name, group: 'total', label: t.label, base: sum('base'), stock: sum('stock'), sold: sum('sold') };
+  });
+  const options = [...totals, ...perOption];
+  const tracked = [...TOTALS, ...OPTIONS];
 
   // Logging is best-effort: live numbers are still returned if Redis is down.
   const changes = [];
@@ -60,15 +50,15 @@ module.exports = async (req, res) => {
   else {
     try {
       for (const [i, opt] of tracked.entries()) {
-        const sold = options[i].sold;
-        if (await saveIfChanged(cfg, historyKey(opt), ts, sold)) changes.push(opt.name + '=' + sold);
+        if (await saveIfChanged(cfg, historyKey(opt), ts, options[i].sold)) changes.push(opt.name + '=' + options[i].sold);
       }
     } catch (e) { redisError = e.message; }
   }
 
   res.status(200).json({
     ok: true, ts, changes, redisError, redisSource: cfg ? cfg.source : null, trackerVars: cfg && cfg.trackerVars,
-    product: { name: items[0].itemTitle.replace(/\s+/g, ' ').replace(/（[^）]*）\s*$/, '').trim(), price: items[0].itemDiscountLowPrice / 100 },
+    product: { id: data.id, name: data.name.trim(), price: data.discountPrice, status: data.status,
+               saleStartAt: data.saleStartAt, saleEndAt: data.saleEndAt },
     options,
   });
 };

@@ -107,10 +107,10 @@
     }
 
     function renderHeader(opt, product) {
-      document.title = opt.name + ' sold_log · YUHZ Video Fansign';
+      document.title = opt.name + ' sold_log · YUHZ Special Event';
       document.getElementById('page-title').textContent = opt.name + '-sold_log';
       document.getElementById('page-meta').textContent =
-        opt.label + (opt.itemId ? ' · Weidian #' + opt.itemId : '') + ' · Starting stock: ' + fmt(opt.base);
+        opt.label + (opt.optionId ? ' · option #' + opt.optionId : '') + ' · Starting stock: ' + fmt(opt.base);
       document.getElementById('table-caption').textContent = opt.name + '-sold_log (KST)';
       document.getElementById('sum-sold').textContent = fmt(opt.sold);
       document.getElementById('sum-sold-sub').textContent = 'of ' + fmt(opt.base) + ' starting stock';
@@ -159,7 +159,7 @@
           document.body.innerHTML = '<p style="padding:32px;color:#888">Not found. <a href="/">← Back</a></p>';
           return;
         }
-        if (opt.sold === null) throw new Error('stock missing from Weidian response');
+        if (opt.sold === null) throw new Error('stock missing from my1pick response');
         renderHeader(opt, data.product);
         const history = await fetch('/api/history?option=' + SLUG, { cache: 'no-store' })
           .then(r => r.json()).catch(e => ({ error: e.message }));
