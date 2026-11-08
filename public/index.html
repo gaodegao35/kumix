@@ -40,7 +40,7 @@
 
   <div class="warning">
     <span>⚠</span>
-    <span>Sold = 9,999 − current stock for each option; totals add up the options. If the shop restocks or the real starting stock differs, counts will be off.</span>
+    <span>Sold = 9,999 − current stock for each option. If the shop restocks or the real starting stock differs, counts will be off.</span>
   </div>
 
   <div class="status-bar">
@@ -48,9 +48,6 @@
     <span id="status-text">Connecting...</span>
     <span class="next-refresh" id="next-refresh"></span>
   </div>
-
-  <div class="section-label">Combined</div>
-  <div class="grid" id="grid-total"></div>
 
   <div class="section-label">Cafe Event · Group Video Call</div>
   <div class="grid" id="grid-event"></div>
@@ -62,8 +59,6 @@
   <script>
     const INTERVAL = 15000;
     const OPTIONS = [
-      { slug: 'total',     title: 'TOTAL · All options', section: 'total' },
-      { slug: 'diy-total', title: 'DIY TOTAL · 7 members', section: 'total' },
       { slug: 'cafe',      title: 'CAFE · 카페 이벤트',   section: 'event' },
       { slug: 'call',      title: 'CALL · 단체 영상통화', section: 'event' },
       { slug: 'junseong',  title: 'JUNSEONG · 준성', section: 'diy' },
@@ -96,11 +91,9 @@
       });
     }
 
-    function updateCard(opt, all) {
+    function updateCard(opt) {
       document.getElementById('sales-' + opt.slug).textContent = fmt(opt.sold);
-      document.getElementById('stock-' + opt.slug).textContent = opt.slug === 'total'
-        ? ['CAFE', 'CALL', 'DIY-TOTAL'].map(n => { const o = all.find(x => x.name === n); return n.replace('-TOTAL', '') + ' ' + fmt(o.sold); }).join(' + ')
-        : fmt(opt.stock) + ' left of ' + fmt(opt.base);
+      document.getElementById('stock-' + opt.slug).textContent = fmt(opt.stock) + ' left of ' + fmt(opt.base);
       const prev = prevSales[opt.slug];
       if (prev !== undefined && opt.sold !== prev) {
         const delta = opt.sold - prev;
@@ -135,7 +128,7 @@
       try {
         const data = await fetch('/api/poll', { cache: 'no-store' }).then(r => r.json());
         if (data.error) throw new Error(data.error);
-        data.options.forEach(o => updateCard(o, data.options));
+        data.options.forEach(updateCard);
         const p = data.product;
         document.getElementById('subtitle').textContent =
           p.name + ' · ₩' + fmt(p.price) + ' each · my1pick #' + p.id + ' · Updates every 15s';
