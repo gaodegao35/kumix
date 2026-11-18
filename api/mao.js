@@ -1,8 +1,7 @@
 // Fetches live stock for the maonft HK tickets, logs any change to Redis, and returns the current state.
-// Called every 30 min by the GitHub Actions poller and whenever the /hk page loads or refreshes.
+// Called every 30 min by the GitHub Actions poller and whenever the page loads or refreshes.
 const { config, redis, pipeline } = require('../lib/redis');
-const { NFT_IDS, LOG_PREFIX, LAST_KEY, FIRST_KEY, MAX_ENTRIES, fetchProduct } = require('../lib/mao');
-const { tsNow } = require('../lib/product');
+const { NFT_IDS, LOG_PREFIX, LAST_KEY, FIRST_KEY, MAX_ENTRIES, fetchProduct, tsNow } = require('../lib/mao');
 
 const toMap = flat => {
   const m = {};

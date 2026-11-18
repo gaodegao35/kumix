@@ -1,12 +1,9 @@
 {
-  "rewrites": [
-    {
-      "source": "/option/:name",
-      "destination": "/option.html"
-    },
+  "redirects": [
     {
       "source": "/hk",
-      "destination": "/hk.html"
+      "destination": "/",
+      "permanent": false
     }
   ]
 }

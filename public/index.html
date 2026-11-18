@@ -3,147 +3,166 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>YUHZ Special Event — Sales Tracker</title>
+  <title>YUHZ HK Ticket Stock</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #111; min-height: 100vh; padding: 32px 24px; }
     a { color: inherit; text-decoration: none; }
+    .back { font-size: 13px; color: #888; display: inline-block; margin-bottom: 20px; }
+    .back:hover { color: #333; }
     h1 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
-    .subtitle { font-size: 13px; color: #888; margin-bottom: 24px; }
-    .nav-link { display: inline-block; font-size: 13px; font-weight: 600; color: #555; background: #fff; border: 1px solid #e0e0e0; border-radius: 6px; padding: 6px 12px; margin-bottom: 20px; }
-    .nav-link:hover { border-color: #aaa; }
-    .hint { font-size: 12px; color: #aaa; margin-top: 16px; }
-    .warning { background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #92400e; margin-bottom: 20px; display: flex; gap: 8px; align-items: flex-start; line-height: 1.5; }
-    .status-bar { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #888; margin-bottom: 20px; }
+    .subtitle { font-size: 13px; color: #888; margin-bottom: 20px; }
+    .warning { background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #92400e; margin-bottom: 20px; line-height: 1.5; }
+    .status-bar { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #888; margin-bottom: 20px; flex-wrap: wrap; }
     .dot { width: 8px; height: 8px; border-radius: 50%; background: #ccc; }
     .dot.active { background: #16a34a; }
     .dot.error  { background: #dc2626; }
-    .next-refresh { font-size: 12px; color: #aaa; margin-left: auto; }
-    .section-label { font-size: 11px; font-weight: 700; color: #aaa; text-transform: uppercase; letter-spacing: 0.1em; margin: 20px 0 10px; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
-    .card { background: #fff; border: 1px solid #e0e0e0; border-radius: 10px; padding: 18px 20px; display: block; transition: border-color 0.2s, box-shadow 0.2s; }
-    .card:hover { border-color: #aaa; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-    .card.changed { border-color: #16a34a; }
-    .member-name { font-size: 11px; font-weight: 700; color: #888; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
-    .arrow { font-size: 14px; color: #ccc; }
-    .sales-row { display: flex; align-items: baseline; gap: 8px; }
-    .sales-count { font-size: 32px; font-weight: 800; color: #111; line-height: 1; }
-    .sales-label { font-size: 12px; color: #aaa; }
-    .stock-sub { font-size: 11px; color: #bbb; margin-top: 5px; }
-    .delta-badge { display: inline-block; font-size: 12px; font-weight: 700; border-radius: 5px; padding: 1px 7px; margin-top: 6px; opacity: 0; transition: opacity 0.3s; }
-    .delta-badge.up   { color: #16a34a; background: #dcfce7; }
-    .delta-badge.down { color: #dc2626; background: #fee2e2; }
-    .delta-badge.visible { opacity: 1; }
+    .refresh-btn { font: inherit; font-size: 12px; font-weight: 600; color: #333; background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 4px 10px; cursor: pointer; margin-left: auto; }
+    .refresh-btn:hover { border-color: #aaa; }
+    .refresh-btn:disabled { opacity: 0.5; cursor: default; }
+    h2 { font-size: 15px; font-weight: 700; margin: 28px 0 4px; }
+    .product-meta { font-size: 12px; color: #888; margin-bottom: 10px; }
+    .table-wrap { overflow-x: auto; border: 1px solid #e0e0e0; border-radius: 10px; background: #fff; }
+    table { width: 100%; border-collapse: collapse; min-width: 560px; }
+    th { text-align: left; font-size: 12px; font-weight: 700; padding: 10px 14px; border-bottom: 2px solid #e0e0e0; color: #555; white-space: nowrap; }
+    td { padding: 9px 14px; font-size: 14px; border-bottom: 1px solid #f0f0f0; white-space: nowrap; }
+    th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    tr.tier { cursor: pointer; }
+    tr.tier:hover td { background: #fafafa; }
+    tr.tier.open td { background: #f5f5f5; }
+    td.name { font-weight: 600; }
+    td.show { color: #555; font-variant-numeric: tabular-nums; }
+    td.left { font-weight: 800; }
+    td.soldout { color: #dc2626; }
+    .up { color: #16a34a; }
+    .down { color: #dc2626; }
+    .muted { color: #aaa; font-weight: 400; }
+    .changed td { animation: flash 3s ease-out; }
+    @keyframes flash { from { background: #dcfce7; } to { background: transparent; } }
+    tr.log td { background: #fafafa; padding: 8px 14px 14px; }
+    .log-table { min-width: 0; width: auto; }
+    .log-table th, .log-table td { font-size: 12px; padding: 4px 16px 4px 0; border: none; }
+    .log-table td { font-variant-numeric: tabular-nums; }
   </style>
 </head>
 <body>
-  <a class="nav-link" href="/hk">HK LIVE &amp; MEET ticket stock →</a>
-  <h1>YUHZ 1ST EP [B] · 발매기념 SPECIAL EVENT</h1>
-  <p class="subtitle" id="subtitle">my1pick #512 · Updates every 15s</p>
+  <h1>2026 YUHZ LIVE &amp; MEET IN HONG KONG · Ticket Stock</h1>
+  <p class="subtitle" id="subtitle">maonft #353 + #352 · Logged every 30 min</p>
 
   <div class="warning">
-    <span>⚠</span>
-    <span>Sold = 9,999 − current stock for each option. If the shop restocks or the real starting stock differs, counts will be off.</span>
+    The shop shows remaining stock only, not starting stock. "Sold since tracking" counts down from the first number we logged; a negative change means a restock. Click a row to see its log.
   </div>
 
   <div class="status-bar">
     <div class="dot" id="dot"></div>
     <span id="status-text">Connecting...</span>
-    <span class="next-refresh" id="next-refresh"></span>
+    <button class="refresh-btn" id="refresh-btn" type="button">Refresh now</button>
   </div>
 
-  <div class="section-label">Cafe Event · Group Video Call</div>
-  <div class="grid" id="grid-event"></div>
-
-  <div class="section-label">1:1 DIY Event</div>
-  <div class="grid" id="grid-diy"></div>
-  <p class="hint" id="hint"></p>
+  <div id="products"></div>
+  <p class="subtitle" id="hint" style="margin-top:16px"></p>
 
   <script>
-    const INTERVAL = 15000;
-    const OPTIONS = [
-      { slug: 'cafe',      title: 'CAFE · 카페 이벤트',   section: 'event' },
-      { slug: 'call',      title: 'CALL · 단체 영상통화', section: 'event' },
-      { slug: 'junseong',  title: 'JUNSEONG · 준성', section: 'diy' },
-      { slug: 'bohyeon',   title: 'BOHYEON · 보현',  section: 'diy' },
-      { slug: 'sechan',    title: 'SECHAN · 세찬',   section: 'diy' },
-      { slug: 'yeontae',   title: 'YEONTAE · 연태',  section: 'diy' },
-      { slug: 'kai',       title: 'KAI · 카이',      section: 'diy' },
-      { slug: 'hyo',       title: 'HYO · 효',        section: 'diy' },
-      { slug: 'jaeil',     title: 'JAEIL · 재일',    section: 'diy' }
-    ];
-
-    let prevSales = {}, countdownTimer;
-    function fmt(n) { return n.toLocaleString(); }
-
-    function buildGrid() {
-      OPTIONS.forEach(opt => {
-        const card = document.createElement('a');
-        card.className = 'card';
-        card.id = 'card-' + opt.slug;
-        card.href = '/option/' + opt.slug;
-        card.innerHTML = `
-          <div class="member-name">${opt.title}<span class="arrow">→</span></div>
-          <div class="sales-row">
-            <div class="sales-count" id="sales-${opt.slug}">—</div>
-            <div class="sales-label">sold</div>
-          </div>
-          <div class="stock-sub" id="stock-${opt.slug}"></div>
-          <div class="delta-badge" id="badge-${opt.slug}"></div>`;
-        document.getElementById('grid-' + opt.section).appendChild(card);
-      });
-    }
-
-    function updateCard(opt) {
-      document.getElementById('sales-' + opt.slug).textContent = fmt(opt.sold);
-      document.getElementById('stock-' + opt.slug).textContent = fmt(opt.stock) + ' left of ' + fmt(opt.base);
-      const prev = prevSales[opt.slug];
-      if (prev !== undefined && opt.sold !== prev) {
-        const delta = opt.sold - prev;
-        const badge = document.getElementById('badge-' + opt.slug);
-        const card  = document.getElementById('card-'  + opt.slug);
-        badge.textContent = (delta > 0 ? '+' : '') + fmt(delta);
-        badge.className = 'delta-badge visible ' + (delta > 0 ? 'up' : 'down');
-        card.classList.add('changed');
-        setTimeout(() => { badge.classList.remove('visible'); card.classList.remove('changed'); }, 5000);
-      }
-      prevSales[opt.slug] = opt.sold;
-    }
+    const INTERVAL = 30 * 60 * 1000;
+    const prevLeft = {};
+    const openLogs = new Set();
+    let built = false;
+    const fmt = n => n.toLocaleString();
+    const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
     function setStatus(ok, text) {
       document.getElementById('dot').className = 'dot ' + (ok ? 'active' : 'error');
       document.getElementById('status-text').textContent = text;
     }
 
-    function startCountdown() {
-      clearInterval(countdownTimer);
-      let c = INTERVAL / 1000;
-      const el = document.getElementById('next-refresh');
-      el.textContent = 'Next refresh in ' + c + 's';
-      countdownTimer = setInterval(() => {
-        c--;
-        el.textContent = c > 0 ? 'Next refresh in ' + c + 's' : 'Refreshing...';
-        if (c <= 0) clearInterval(countdownTimer);
-      }, 1000);
+    // Same tier at different show times sits together, in the order the shop lists tiers
+    function sortTiers(tiers) {
+      const order = {};
+      tiers.forEach(t => { if (!(t.name in order)) order[t.name] = Object.keys(order).length; });
+      return [...tiers].sort((a, b) => order[a.name] - order[b.name] || String(a.show).localeCompare(String(b.show)));
     }
 
-    async function fetchStock() {
+    function build(products) {
+      document.getElementById('products').innerHTML = products.map(p => `
+        <h2>${esc(p.name)}</h2>
+        <p class="product-meta">#${p.nftId} · ${esc(p.venue)} · max ${p.limit} per person</p>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Tier</th><th>Show</th><th class="num">Price</th><th class="num">Left</th><th class="num">Sold since tracking</th></tr></thead>
+          <tbody>${sortTiers(p.tiers).map(t => `
+            <tr class="tier" id="tier-${t.ticketId}" data-id="${t.ticketId}">
+              <td class="name">${esc(t.name)}</td>
+              <td class="show">${esc((t.show || '').slice(5))}</td>
+              <td class="num">HK$${fmt(t.price)}</td>
+              <td class="num left" id="left-${t.ticketId}"></td>
+              <td class="num" id="sold-${t.ticketId}"></td>
+            </tr>
+            <tr class="log" id="log-${t.ticketId}" hidden><td colspan="5"></td></tr>`).join('')}
+          </tbody>
+        </table></div>`).join('');
+      document.querySelectorAll('tr.tier').forEach(row => row.addEventListener('click', () => toggleLog(row.dataset.id)));
+      built = true;
+    }
+
+    function update(products) {
+      for (const t of products.flatMap(p => p.tiers)) {
+        const left = document.getElementById('left-' + t.ticketId);
+        if (!left) { built = false; return; }
+        left.textContent = t.soldOut || t.left === 0 ? 'SOLD OUT' : fmt(t.left);
+        left.className = 'num left' + (t.soldOut || t.left === 0 ? ' soldout' : '');
+        const sold = document.getElementById('sold-' + t.ticketId);
+        if (t.soldSinceStart === null) sold.innerHTML = '<span class="muted">—</span>';
+        else sold.innerHTML = t.soldSinceStart > 0 ? '<span class="up">' + fmt(t.soldSinceStart) + '</span>'
+          : t.soldSinceStart < 0 ? '<span class="down">' + fmt(t.soldSinceStart) + '</span>' : '<span class="muted">0</span>';
+        if (prevLeft[t.ticketId] !== undefined && prevLeft[t.ticketId] !== t.left) {
+          const row = document.getElementById('tier-' + t.ticketId);
+          row.classList.remove('changed'); void row.offsetWidth; row.classList.add('changed');
+        }
+        prevLeft[t.ticketId] = t.left;
+      }
+    }
+
+    async function loadLog(id) {
+      const cell = document.querySelector('#log-' + id + ' td');
+      const entries = await fetch('/api/mao-history?ticketId=' + id, { cache: 'no-store' }).then(r => r.json()).catch(e => ({ error: e.message }));
+      if (!Array.isArray(entries)) { cell.innerHTML = '<span class="muted">Log unavailable: ' + esc(entries.error || 'unknown error') + '</span>'; return; }
+      if (!entries.length) { cell.innerHTML = '<span class="muted">No changes logged yet.</span>'; return; }
+      cell.innerHTML = '<table class="log-table"><thead><tr><th>#</th><th>time (KST)</th><th class="num">left</th><th class="num">sold</th></tr></thead><tbody>' +
+        entries.map((e, i) => {
+          const s = e.sold === null ? '<span class="muted">start</span>'
+            : e.sold > 0 ? '<span class="up">+' + fmt(e.sold) + '</span>'
+            : '<span class="down">' + fmt(e.sold) + ' (restock)</span>';
+          return '<tr><td class="muted">' + (entries.length - i) + '</td><td>' + esc(e.ts) + '</td><td class="num">' + fmt(e.left) + '</td><td class="num">' + s + '</td></tr>';
+        }).join('') + '</tbody></table>';
+    }
+
+    function toggleLog(id) {
+      const row = document.getElementById('log-' + id);
+      const open = row.hidden;
+      row.hidden = !open;
+      document.getElementById('tier-' + id).classList.toggle('open', open);
+      if (open) { openLogs.add(id); row.querySelector('td').innerHTML = '<span class="muted">Loading…</span>'; loadLog(id); }
+      else openLogs.delete(id);
+    }
+
+    async function refresh() {
+      const btn = document.getElementById('refresh-btn');
+      btn.disabled = true;
       try {
-        const data = await fetch('/api/poll', { cache: 'no-store' }).then(r => r.json());
+        const data = await fetch('/api/mao', { cache: 'no-store' }).then(r => r.json());
         if (data.error) throw new Error(data.error);
-        data.options.forEach(updateCard);
-        const p = data.product;
-        document.getElementById('subtitle').textContent =
-          p.name + ' · ₩' + fmt(p.price) + ' each · my1pick #' + p.id + ' · Updates every 15s';
+        if (!built) build(data.products);
+        update(data.products);
+        if (!built) { build(data.products); update(data.products); }
+        openLogs.forEach(loadLog);
         document.getElementById('hint').textContent = data.redisError ? 'History logging unavailable: ' + data.redisError : '';
-        setStatus(true, 'Live · ' + data.ts.split(' ')[1] + ' KST');
+        setStatus(true, 'Updated ' + data.ts + ' KST · next refresh in 30 min');
       } catch (e) { setStatus(false, 'Error: ' + e.message); }
-      startCountdown();
+      btn.disabled = false;
     }
 
-    buildGrid();
-    fetchStock();
-    setInterval(fetchStock, INTERVAL);
+    document.getElementById('refresh-btn').addEventListener('click', refresh);
+    refresh();
+    setInterval(refresh, INTERVAL);
   </script>
 </body>
 </html>

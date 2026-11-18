@@ -1,29 +1,25 @@
 // Redis log maintenance:
-//   ?purge=old       → delete every log:* key that does not belong to the current items (maonft HK logs are kept)
-//   ?delete=<slug>   → wipe one option's history (e.g. after correcting its base stock)
+//   ?purge=old          → delete every log:* key that isn't an HK ticket log (e.g. old tracker history)
+//   ?delete=<ticketId>  → wipe one tier's history; it restarts from the next poll
 const { config, redis } = require('../lib/redis');
-const { TRACKED, KEY_PREFIX, historyKey } = require('../lib/product');
-const { LOG_PREFIX } = require('../lib/mao');
+const { LOG_PREFIX, LAST_KEY, FIRST_KEY } = require('../lib/mao');
 
 module.exports = async (req, res) => {
   const cfg = config();
   if (!cfg) { res.status(500).json({ error: 'Redis not configured' }); return; }
-  if (req.query.delete) {
-    const opt = TRACKED.find(o => o.slug === req.query.delete);
-    if (!opt) { res.status(400).json({ error: 'Unknown option' }); return; }
-    try {
-      await redis(cfg, ['DEL', 'log:' + historyKey(opt)]);
-      res.status(200).json({ ok: true, deleted: historyKey(opt) });
-    } catch (e) { res.status(500).json({ error: e.message }); }
-    return;
-  }
-  if (req.query.purge !== 'old') { res.status(400).json({ error: 'use ?purge=old or ?delete=<option>' }); return; }
-
   try {
-    // Keep the current my1pick logs and the maonft HK logs
-    const keep = ['log:' + KEY_PREFIX, LOG_PREFIX];
+    if (req.query.delete) {
+      const id = String(req.query.delete);
+      if (!/^\d+$/.test(id)) { res.status(400).json({ error: 'delete takes a ticketId' }); return; }
+      await redis(cfg, ['DEL', LOG_PREFIX + id]);
+      await redis(cfg, ['HDEL', LAST_KEY, id]);
+      await redis(cfg, ['HDEL', FIRST_KEY, id]);
+      res.status(200).json({ ok: true, deleted: LOG_PREFIX + id });
+      return;
+    }
+    if (req.query.purge !== 'old') { res.status(400).json({ error: 'use ?purge=old or ?delete=<ticketId>' }); return; }
     const result = await redis(cfg, ['KEYS', 'log:*']);
-    const keys = (result.result || []).filter(k => !keep.some(prefix => k.startsWith(prefix)));
+    const keys = (result.result || []).filter(k => !k.startsWith(LOG_PREFIX));
     for (const k of keys) await redis(cfg, ['DEL', k]);
     res.status(200).json({ ok: true, deleted: keys });
   } catch (e) {
