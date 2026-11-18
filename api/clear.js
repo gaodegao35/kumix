@@ -1,8 +1,9 @@
 // Redis log maintenance:
-//   ?purge=old       → delete every log:* key that does not belong to the current items
+//   ?purge=old       → delete every log:* key that does not belong to the current items (maonft HK logs are kept)
 //   ?delete=<slug>   → wipe one option's history (e.g. after correcting its base stock)
 const { config, redis } = require('../lib/redis');
 const { TRACKED, KEY_PREFIX, historyKey } = require('../lib/product');
+const { LOG_PREFIX } = require('../lib/mao');
 
 module.exports = async (req, res) => {
   const cfg = config();
@@ -19,9 +20,10 @@ module.exports = async (req, res) => {
   if (req.query.purge !== 'old') { res.status(400).json({ error: 'use ?purge=old or ?delete=<option>' }); return; }
 
   try {
-    const current = 'log:' + KEY_PREFIX;
+    // Keep the current my1pick logs and the maonft HK logs
+    const keep = ['log:' + KEY_PREFIX, LOG_PREFIX];
     const result = await redis(cfg, ['KEYS', 'log:*']);
-    const keys = (result.result || []).filter(k => !k.startsWith(current));
+    const keys = (result.result || []).filter(k => !keep.some(prefix => k.startsWith(prefix)));
     for (const k of keys) await redis(cfg, ['DEL', k]);
     res.status(200).json({ ok: true, deleted: keys });
   } catch (e) {

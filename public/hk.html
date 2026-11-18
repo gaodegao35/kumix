@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YUHZ HK Ticket Stock</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #111; min-height: 100vh; padding: 32px 24px; }
+    a { color: inherit; text-decoration: none; }
+    .back { font-size: 13px; color: #888; display: inline-block; margin-bottom: 20px; }
+    .back:hover { color: #333; }
+    h1 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+    .subtitle { font-size: 13px; color: #888; margin-bottom: 20px; }
+    .warning { background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #92400e; margin-bottom: 20px; line-height: 1.5; }
+    .status-bar { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #888; margin-bottom: 20px; flex-wrap: wrap; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #ccc; }
+    .dot.active { background: #16a34a; }
+    .dot.error  { background: #dc2626; }
+    .refresh-btn { font: inherit; font-size: 12px; font-weight: 600; color: #333; background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 4px 10px; cursor: pointer; margin-left: auto; }
+    .refresh-btn:hover { border-color: #aaa; }
+    .refresh-btn:disabled { opacity: 0.5; cursor: default; }
+    h2 { font-size: 15px; font-weight: 700; margin: 28px 0 4px; }
+    .product-meta { font-size: 12px; color: #888; margin-bottom: 10px; }
+    .table-wrap { overflow-x: auto; border: 1px solid #e0e0e0; border-radius: 10px; background: #fff; }
+    table { width: 100%; border-collapse: collapse; min-width: 560px; }
+    th { text-align: left; font-size: 12px; font-weight: 700; padding: 10px 14px; border-bottom: 2px solid #e0e0e0; color: #555; white-space: nowrap; }
+    td { padding: 9px 14px; font-size: 14px; border-bottom: 1px solid #f0f0f0; white-space: nowrap; }
+    th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    tr.tier { cursor: pointer; }
+    tr.tier:hover td { background: #fafafa; }
+    tr.tier.open td { background: #f5f5f5; }
+    td.name { font-weight: 600; }
+    td.show { color: #555; font-variant-numeric: tabular-nums; }
+    td.left { font-weight: 800; }
+    td.soldout { color: #dc2626; }
+    .up { color: #16a34a; }
+    .down { color: #dc2626; }
+    .muted { color: #aaa; font-weight: 400; }
+    .changed td { animation: flash 3s ease-out; }
+    @keyframes flash { from { background: #dcfce7; } to { background: transparent; } }
+    tr.log td { background: #fafafa; padding: 8px 14px 14px; }
+    .log-table { min-width: 0; width: auto; }
+    .log-table th, .log-table td { font-size: 12px; padding: 4px 16px 4px 0; border: none; }
+    .log-table td { font-variant-numeric: tabular-nums; }
+  </style>
+</head>
+<body>
+  <a class="back" href="/">← my1pick tracker</a>
+  <h1>2026 YUHZ LIVE &amp; MEET IN HONG KONG · Ticket Stock</h1>
+  <p class="subtitle" id="subtitle">maonft #353 + #352 · Logged every 30 min</p>
+
+  <div class="warning">
+    The shop shows remaining stock only, not starting stock. "Sold since tracking" counts down from the first number we logged; a negative change means a restock. Click a row to see its log.
+  </div>
+
+  <div class="status-bar">
+    <div class="dot" id="dot"></div>
+    <span id="status-text">Connecting...</span>
+    <button class="refresh-btn" id="refresh-btn" type="button">Refresh now</button>
+  </div>
+
+  <div id="products"></div>
+  <p class="subtitle" id="hint" style="margin-top:16px"></p>
+
+  <script>
+    const INTERVAL = 30 * 60 * 1000;
+    const prevLeft = {};
+    const openLogs = new Set();
+    let built = false;
+    const fmt = n => n.toLocaleString();
+    const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+    function setStatus(ok, text) {
+      document.getElementById('dot').className = 'dot ' + (ok ? 'active' : 'error');
+      document.getElementById('status-text').textContent = text;
+    }
+
+    // Same tier at different show times sits together, in the order the shop lists tiers
+    function sortTiers(tiers) {
+      const order = {};
+      tiers.forEach(t => { if (!(t.name in order)) order[t.name] = Object.keys(order).length; });
+      return [...tiers].sort((a, b) => order[a.name] - order[b.name] || String(a.show).localeCompare(String(b.show)));
+    }
+
+    function build(products) {
+      document.getElementById('products').innerHTML = products.map(p => `
+        <h2>${esc(p.name)}</h2>
+        <p class="product-meta">#${p.nftId} · ${esc(p.venue)} · max ${p.limit} per person</p>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Tier</th><th>Show</th><th class="num">Price</th><th class="num">Left</th><th class="num">Sold since tracking</th></tr></thead>
+          <tbody>${sortTiers(p.tiers).map(t => `
+            <tr class="tier" id="tier-${t.ticketId}" data-id="${t.ticketId}">
+              <td class="name">${esc(t.name)}</td>
+              <td class="show">${esc((t.show || '').slice(5))}</td>
+              <td class="num">HK$${fmt(t.price)}</td>
+              <td class="num left" id="left-${t.ticketId}"></td>
+              <td class="num" id="sold-${t.ticketId}"></td>
+            </tr>
+            <tr class="log" id="log-${t.ticketId}" hidden><td colspan="5"></td></tr>`).join('')}
+          </tbody>
+        </table></div>`).join('');
+      document.querySelectorAll('tr.tier').forEach(row => row.addEventListener('click', () => toggleLog(row.dataset.id)));
+      built = true;
+    }
+
+    function update(products) {
+      for (const t of products.flatMap(p => p.tiers)) {
+        const left = document.getElementById('left-' + t.ticketId);
+        if (!left) { built = false; return; }
+        left.textContent = t.soldOut || t.left === 0 ? 'SOLD OUT' : fmt(t.left);
+        left.className = 'num left' + (t.soldOut || t.left === 0 ? ' soldout' : '');
+        const sold = document.getElementById('sold-' + t.ticketId);
+        if (t.soldSinceStart === null) sold.innerHTML = '<span class="muted">—</span>';
+        else sold.innerHTML = t.soldSinceStart > 0 ? '<span class="up">' + fmt(t.soldSinceStart) + '</span>'
+          : t.soldSinceStart < 0 ? '<span class="down">' + fmt(t.soldSinceStart) + '</span>' : '<span class="muted">0</span>';
+        if (prevLeft[t.ticketId] !== undefined && prevLeft[t.ticketId] !== t.left) {
+          const row = document.getElementById('tier-' + t.ticketId);
+          row.classList.remove('changed'); void row.offsetWidth; row.classList.add('changed');
+        }
+        prevLeft[t.ticketId] = t.left;
+      }
+    }
+
+    async function loadLog(id) {
+      const cell = document.querySelector('#log-' + id + ' td');
+      const entries = await fetch('/api/mao-history?ticketId=' + id, { cache: 'no-store' }).then(r => r.json()).catch(e => ({ error: e.message }));
+      if (!Array.isArray(entries)) { cell.innerHTML = '<span class="muted">Log unavailable: ' + esc(entries.error || 'unknown error') + '</span>'; return; }
+      if (!entries.length) { cell.innerHTML = '<span class="muted">No changes logged yet.</span>'; return; }
+      cell.innerHTML = '<table class="log-table"><thead><tr><th>#</th><th>time (KST)</th><th class="num">left</th><th class="num">sold</th></tr></thead><tbody>' +
+        entries.map((e, i) => {
+          const s = e.sold === null ? '<span class="muted">start</span>'
+            : e.sold > 0 ? '<span class="up">+' + fmt(e.sold) + '</span>'
+            : '<span class="down">' + fmt(e.sold) + ' (restock)</span>';
+          return '<tr><td class="muted">' + (entries.length - i) + '</td><td>' + esc(e.ts) + '</td><td class="num">' + fmt(e.left) + '</td><td class="num">' + s + '</td></tr>';
+        }).join('') + '</tbody></table>';
+    }
+
+    function toggleLog(id) {
+      const row = document.getElementById('log-' + id);
+      const open = row.hidden;
+      row.hidden = !open;
+      document.getElementById('tier-' + id).classList.toggle('open', open);
+      if (open) { openLogs.add(id); row.querySelector('td').innerHTML = '<span class="muted">Loading…</span>'; loadLog(id); }
+      else openLogs.delete(id);
+    }
+
+    async function refresh() {
+      const btn = document.getElementById('refresh-btn');
+      btn.disabled = true;
+      try {
+        const data = await fetch('/api/mao', { cache: 'no-store' }).then(r => r.json());
+        if (data.error) throw new Error(data.error);
+        if (!built) build(data.products);
+        update(data.products);
+        if (!built) { build(data.products); update(data.products); }
+        openLogs.forEach(loadLog);
+        document.getElementById('hint').textContent = data.redisError ? 'History logging unavailable: ' + data.redisError : '';
+        setStatus(true, 'Updated ' + data.ts + ' KST · next refresh in 30 min');
+      } catch (e) { setStatus(false, 'Error: ' + e.message); }
+      btn.disabled = false;
+    }
+
+    document.getElementById('refresh-btn').addEventListener('click', refresh);
+    refresh();
+    setInterval(refresh, INTERVAL);
+  </script>
+</body>
+</html>

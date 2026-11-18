@@ -1,5 +1,12 @@
 {
   "rewrites": [
-    { "source": "/option/:name", "destination": "/option.html" }
+    {
+      "source": "/option/:name",
+      "destination": "/option.html"
+    },
+    {
+      "source": "/hk",
+      "destination": "/hk.html"
+    }
   ]
 }

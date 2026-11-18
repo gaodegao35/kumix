@@ -1,0 +1,32 @@
+name: Poll HK tickets every 30m
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+  # Start polling as soon as a change is pushed
+  push:
+    branches: [main]
+
+# GitHub often starts scheduled runs hours late, so each run keeps looping for ~6h;
+# a new run takes over from the previous one so hits don't double up.
+concurrency:
+  group: mao
+  cancel-in-progress: true
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - name: Hit /api/mao every 30 minutes
+        run: |
+          # maonft ticket sales close 2026-12-06 00:00 HKT; stop polling 10 min later (= 2026-12-05 16:10 UTC)
+          event_end=$(date -u -d '2026-12-05 16:10:00' +%s)
+          if [ "$(date -u +%s)" -ge "$event_end" ]; then echo "Sales closed, nothing to poll."; exit 0; fi
+          end=$((SECONDS + 350*60))
+          while [ $SECONDS -lt $end ] && [ "$(date -u +%s)" -lt "$event_end" ]; do
+            curl -s --max-time 30 "https://kumix.vercel.app/api/mao" | head -c 300 || true
+            echo ""
+            sleep 1800
+          done
