@@ -47,7 +47,7 @@
 </head>
 <body>
   <h1>2026 YUHZ LIVE &amp; MEET IN HONG KONG · Ticket Stock</h1>
-  <p class="subtitle" id="subtitle">maonft #353 + #352 · Logged every 30 min</p>
+  <p class="subtitle" id="subtitle">maonft #353 + #352 + #360 · Logged every minute</p>
 
   <div class="warning">
     The shop shows remaining stock only, not starting stock. "Sold since tracking" counts down from the first number we logged; a negative change means a restock. Click a row to see its log.
@@ -63,7 +63,7 @@
   <p class="subtitle" id="hint" style="margin-top:16px"></p>
 
   <script>
-    const INTERVAL = 30 * 60 * 1000;
+    const INTERVAL = 60 * 1000;
     const prevLeft = {};
     const openLogs = new Set();
     let built = false;
@@ -155,7 +155,7 @@
         if (!built) { build(data.products); update(data.products); }
         openLogs.forEach(loadLog);
         document.getElementById('hint').textContent = data.redisError ? 'History logging unavailable: ' + data.redisError : '';
-        setStatus(true, 'Updated ' + data.ts + ' KST · next refresh in 30 min');
+        setStatus(true, 'Updated ' + data.ts + ' KST · next refresh in 1 min');
       } catch (e) { setStatus(false, 'Error: ' + e.message); }
       btn.disabled = false;
     }

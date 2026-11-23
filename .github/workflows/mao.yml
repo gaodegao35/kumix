@@ -1,4 +1,4 @@
-name: Poll HK tickets every 30m
+name: Poll HK tickets every minute
 
 on:
   schedule:
@@ -19,14 +19,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 360
     steps:
-      - name: Hit /api/mao every 30 minutes
+      - name: Hit /api/mao every minute
         run: |
-          # maonft ticket sales close 2026-12-06 00:00 HKT; stop polling 10 min later (= 2026-12-05 16:10 UTC)
+          # Last maonft sales close 2026-12-06 00:00 HKT (#360 closes earlier, 12-02 15:00); stop polling 10 min later (= 2026-12-05 16:10 UTC)
           event_end=$(date -u -d '2026-12-05 16:10:00' +%s)
           if [ "$(date -u +%s)" -ge "$event_end" ]; then echo "Sales closed, nothing to poll."; exit 0; fi
           end=$((SECONDS + 350*60))
           while [ $SECONDS -lt $end ] && [ "$(date -u +%s)" -lt "$event_end" ]; do
             curl -s --max-time 30 "https://kumix.vercel.app/api/mao" | head -c 300 || true
             echo ""
-            sleep 1800
+            sleep 60
           done
