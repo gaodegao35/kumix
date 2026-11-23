@@ -17,7 +17,9 @@ module.exports = async (req, res) => {
   try {
     products = await Promise.all(NFT_IDS.map(fetchProduct));
   } catch (e) {
-    res.status(502).json({ error: 'maonft: ' + e.message, ts });
+    // Node's fetch hides the network reason (timeout, reset, DNS…) in e.cause
+    const cause = e.cause ? ' (' + [e.cause.code, e.cause.message].filter(Boolean).join(': ') + ')' : '';
+    res.status(502).json({ error: 'maonft: ' + e.message + cause, ts });
     return;
   }
   const tiers = products.flatMap(p => p.tiers);
